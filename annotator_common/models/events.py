@@ -32,6 +32,14 @@ class ProjectStatus(str, Enum):
     FAILED = "failed"
 
 
+class CallbackEventType(str, Enum):
+    """Callback event types."""
+
+    ANNOTATION_CREATED = "annotation_created"
+    PROJECT_STATUS_CHANGED = "project_status_changed"
+    PROJECT_PROGRESS_UPDATED = "project_progress_updated"
+
+
 class ProjectEvent(BaseModel):
     """Base event model for all project events."""
 
@@ -74,4 +82,12 @@ class AnnotationCreatedEvent(ProjectEvent):
     label: str
     cutout_id: str
     product_image_id: str
+
+
+class ErrorEvent(ProjectEvent):
+    """Event for when a blocking error occurs in a service."""
+
+    error_message: str
+    service_name: str
+    error_type: Optional[str] = None  # Exception class name
 

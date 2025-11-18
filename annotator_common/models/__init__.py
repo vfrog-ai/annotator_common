@@ -9,7 +9,9 @@ from .events import (
     CutoutsReadyEvent,
     ImageAnalyzedEvent,
     AnnotationCreatedEvent,
-    ProjectStatus
+    ErrorEvent,
+    ProjectStatus,
+    CallbackEventType,
 )
 
 __all__ = [
@@ -19,6 +21,8 @@ __all__ = [
     "CutoutsReadyEvent",
     "ImageAnalyzedEvent",
     "AnnotationCreatedEvent",
+    "ErrorEvent",
     "ProjectStatus",
+    "CallbackEventType",
 ]
 
