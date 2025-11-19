@@ -25,28 +25,25 @@ class CloudLoggingJSONFormatter(logging.Formatter):
     """
     
     def format(self, record):
-        # Check if message looks like JSON (starts with '{' and contains project_iteration_id)
+        # Check if message looks like JSON (starts with '{')
         message = record.getMessage()
-        if message.strip().startswith('{') and 'project_iteration_id' in message:
+        if message.strip().startswith('{'):
             try:
                 # Try to parse as JSON - if it's valid, output it directly
-                parsed = json.loads(message.split(' | ')[0] if ' | ' in message else message)
+                parsed = json.loads(message)
                 # Output as pure JSON for Cloud Logging
                 log_entry = {
                     "severity": record.levelname,
-                    "message": parsed.get("message", message),
+                    "message": parsed.get("message", str(message)),
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "service": record.name,
                 }
-                # Add structured fields
-                if "project_iteration_id" in parsed:
-                    log_entry["project_iteration_id"] = parsed["project_iteration_id"]
-                # Add any other fields
+                # Add all structured fields from parsed JSON
                 for key, value in parsed.items():
-                    if key not in ["message"] and key not in log_entry:
+                    if key != "message":  # Already added above
                         log_entry[key] = value
                 return json.dumps(log_entry)
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, ValueError, TypeError):
                 # If JSON parsing fails, fall back to standard format
                 pass
         
