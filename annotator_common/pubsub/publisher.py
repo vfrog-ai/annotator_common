@@ -61,67 +61,95 @@ class PubSubPublisher:
         message: Dict[str, Any],
         attributes: Optional[Dict[str, str]] = None,
         ordering_key: Optional[str] = None,
+        max_retries: int = 3,
     ) -> str:
         """
-        Publish a message to a Pub/Sub topic.
+        Publish a message to a Pub/Sub topic with retry logic for rate limiting.
 
         Args:
             topic_name: Name of the topic (with environment prefix, e.g., "staging_download_image")
             message: Message payload as dictionary
             attributes: Optional message attributes
             ordering_key: Optional ordering key for ordered delivery
+            max_retries: Maximum number of retry attempts for rate limit errors (default: 3)
 
         Returns:
             Message ID from Pub/Sub
 
         Raises:
-            Exception: If publishing fails
+            Exception: If publishing fails after all retries
         """
-        try:
-            topic_path = self._get_topic_path(topic_name)
+        topic_path = self._get_topic_path(topic_name)
 
-            # Encode message as JSON bytes
-            message_bytes = json.dumps(message).encode("utf-8")
+        # Encode message as JSON bytes
+        message_bytes = json.dumps(message).encode("utf-8")
 
-            # Prepare message attributes
-            message_attributes = attributes or {}
+        # Prepare message attributes
+        message_attributes = attributes or {}
 
-            # Publish message (run in thread pool to avoid blocking event loop)
-            # Only include ordering_key if it's provided (topics must have ordering enabled)
-            publish_kwargs = {
-                **message_attributes,
-            }
-            if ordering_key is not None:
-                publish_kwargs["ordering_key"] = ordering_key
+        # Publish message with retry logic for rate limiting (429/ResourceExhausted)
+        publish_kwargs = {
+            **message_attributes,
+        }
+        if ordering_key is not None:
+            publish_kwargs["ordering_key"] = ordering_key
 
-            future = self._client.publish(
-                topic_path,
-                message_bytes,
-                **publish_kwargs,
-            )
+        last_exception = None
+        for attempt in range(max_retries + 1):
+            try:
+                future = self._client.publish(
+                    topic_path,
+                    message_bytes,
+                    **publish_kwargs,
+                )
 
-            # Wait for publish to complete (run in thread pool for async compatibility)
-            message_id = await asyncio.to_thread(future.result, timeout=30)
+                # Wait for publish to complete (run in thread pool for async compatibility)
+                message_id = await asyncio.to_thread(future.result, timeout=30)
 
-            logger.info(
-                f"Published message to topic {topic_name}: message_id={message_id}, "
-                f"attributes={message_attributes}, ordering_key={ordering_key}"
-            )
+                logger.info(
+                    f"Published message to topic {topic_name}: message_id={message_id}, "
+                    f"attributes={message_attributes}, ordering_key={ordering_key}"
+                )
 
-            return message_id
+                return message_id
 
-        except exceptions.NotFound:
-            # Topic doesn't exist - log warning but don't fail
-            logger.warning(
-                f"Topic {topic_name} not found. Message not published. "
-                f"Create the topic in GCP Console or via gcloud."
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"Failed to publish message to topic {topic_name}: {e}, message: {message}"
-            )
-            raise
+            except exceptions.NotFound:
+                # Topic doesn't exist - don't retry
+                logger.warning(
+                    f"Topic {topic_name} not found. Message not published. "
+                    f"Create the topic in GCP Console or via gcloud."
+                )
+                raise
+
+            except (exceptions.ResourceExhausted, exceptions.ServiceUnavailable) as e:
+                # Rate limiting or service unavailable - retry with exponential backoff
+                last_exception = e
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(
+                        f"Rate limit or service unavailable publishing to {topic_name} "
+                        f"(attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts "
+                        f"(rate limit/service unavailable): {e}, message: {message}"
+                    )
+                    raise
+
+            except Exception as e:
+                # Other errors - don't retry, just raise
+                logger.error(
+                    f"Failed to publish message to topic {topic_name}: {e}, message: {message}"
+                )
+                raise
+
+        # Should never reach here, but just in case
+        if last_exception:
+            raise last_exception
+        raise Exception(f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts")
 
     async def ensure_topic_exists(self, topic_name: str) -> str:
         """
