@@ -5,7 +5,8 @@ Logging configuration and utilities.
 import logging
 import sys
 import socket
-from typing import Optional
+import json
+from typing import Optional, Dict, Any
 from datetime import datetime
 from annotator_common.config import Config
 
@@ -111,4 +112,112 @@ def setup_logger(
 def get_logger(name: str) -> logging.Logger:
     """Get or create a logger with the given name."""
     return logging.getLogger(name)
+
+
+class StructuredLogger:
+    """
+    Wrapper around logger that adds structured fields for Google Cloud Logging.
+    This allows filtering by fields like project_iteration_id in Cloud Logging Explorer.
+    """
+
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    def _format_structured_message(
+        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
+    ) -> str:
+        """
+        Format message with structured fields for Cloud Logging.
+        
+        Cloud Logging automatically parses JSON in log messages and makes fields
+        available for filtering. We format as JSON when project_iteration_id is provided.
+        """
+        if project_iteration_id or kwargs:
+            structured_data: Dict[str, Any] = {
+                "message": message,
+            }
+            if project_iteration_id:
+                structured_data["project_iteration_id"] = project_iteration_id
+            structured_data.update(kwargs)
+            return json.dumps(structured_data)
+        return message
+
+    def debug(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        **kwargs
+    ):
+        """Log debug message with optional structured fields."""
+        formatted = self._format_structured_message(
+            message, project_iteration_id, **kwargs
+        )
+        self.logger.debug(formatted)
+
+    def info(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        **kwargs
+    ):
+        """Log info message with optional structured fields."""
+        formatted = self._format_structured_message(
+            message, project_iteration_id, **kwargs
+        )
+        self.logger.info(formatted)
+
+    def warning(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        **kwargs
+    ):
+        """Log warning message with optional structured fields."""
+        formatted = self._format_structured_message(
+            message, project_iteration_id, **kwargs
+        )
+        self.logger.warning(formatted)
+
+    def error(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        exc_info: bool = False,
+        **kwargs
+    ):
+        """Log error message with optional structured fields."""
+        formatted = self._format_structured_message(
+            message, project_iteration_id, **kwargs
+        )
+        self.logger.error(formatted, exc_info=exc_info)
+
+    def critical(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        **kwargs
+    ):
+        """Log critical message with optional structured fields."""
+        formatted = self._format_structured_message(
+            message, project_iteration_id, **kwargs
+        )
+        self.logger.critical(formatted)
+
+    def __getattr__(self, name: str):
+        """Delegate other attributes to the underlying logger."""
+        return getattr(self.logger, name)
+
+
+def get_structured_logger(name: str) -> StructuredLogger:
+    """
+    Get a structured logger that supports project_iteration_id filtering.
+    
+    Usage:
+        logger = get_structured_logger(__name__)
+        logger.info("Processing image", project_iteration_id="project-123")
+        
+    In Cloud Logging Explorer, you can then filter by:
+        jsonPayload.project_iteration_id="project-123"
+    """
+    return StructuredLogger(logging.getLogger(name))
 
