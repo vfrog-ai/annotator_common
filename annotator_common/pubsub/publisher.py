@@ -87,11 +87,17 @@ class PubSubPublisher:
             message_attributes = attributes or {}
 
             # Publish message (run in thread pool to avoid blocking event loop)
+            # Only include ordering_key if it's provided (topics must have ordering enabled)
+            publish_kwargs = {
+                **message_attributes,
+            }
+            if ordering_key is not None:
+                publish_kwargs["ordering_key"] = ordering_key
+
             future = self._client.publish(
                 topic_path,
                 message_bytes,
-                **message_attributes,
-                ordering_key=ordering_key,
+                **publish_kwargs,
             )
 
             # Wait for publish to complete (run in thread pool for async compatibility)
