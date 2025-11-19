@@ -31,11 +31,15 @@ def init_database() -> None:
     uri = Config.get_mongodb_uri()
     _client = MongoClient(uri)
 
-    # Extract database name from URI if it's a complete URI, otherwise use config
-    # MongoDB URIs format: mongodb://[user:pass@]host[:port]/database[?options]
-    # For Cloud Run, the database name is in the URI
-    # For Docker Compose, we use the config value
-    if "MONGODB_URI" in os.environ:
+    # Determine database name with priority:
+    # 1. MONGODB_DATABASE environment variable (explicit override)
+    # 2. Database name from MONGODB_URI path
+    # 3. Config.MONGODB_DATABASE (default: "annotation_system")
+    if "MONGODB_DATABASE" in os.environ:
+        # Explicit database name override (highest priority)
+        db_name = os.getenv("MONGODB_DATABASE")
+        _database = _client[db_name]
+    elif "MONGODB_URI" in os.environ:
         # Parse database name from URI
         from urllib.parse import urlparse
 
