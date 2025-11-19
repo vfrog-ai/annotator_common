@@ -121,7 +121,8 @@ def setup_logger(
         skip_elasticsearch = (
             os.getenv("K_SERVICE") is not None  # K_SERVICE is set by Cloud Run
             or os.getenv("LOCAL_MODE", "false").lower() == "true"  # Skip in local mode
-            or os.getenv("DISABLE_ELASTICSEARCH", "false").lower() == "true"  # Explicitly disabled
+            or os.getenv("DISABLE_ELASTICSEARCH", "false").lower()
+            == "true"  # Explicitly disabled
         )
 
         if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch:
