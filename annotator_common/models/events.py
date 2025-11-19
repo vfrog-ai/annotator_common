@@ -15,6 +15,7 @@ class EventType(str, Enum):
     CUTOUTS_READY = "cutouts_ready"
     IMAGE_ANALYZED = "image_analyzed"
     ANNOTATION_CREATED = "annotation_created"
+    ANNOTATE_DATASET = "annotate_dataset"
     PROJECT_COMPLETE = "project_complete"
     ERROR = "error"
 
