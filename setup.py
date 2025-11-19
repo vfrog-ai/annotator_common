@@ -25,9 +25,10 @@ setup(
     python_requires=">=3.11",
     install_requires=[
         "pymongo>=4.6.0",
-        "aio-pika>=9.2.0",
+        "aio-pika>=9.2.0",  # Keep for backward compatibility during migration
         "pydantic>=2.5.0",
         "google-cloud-storage>=2.14.0",
+        "google-cloud-pubsub>=2.18.0",
         "elasticsearch>=8.11.0",
     ],
 )

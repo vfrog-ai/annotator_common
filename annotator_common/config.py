@@ -64,6 +64,25 @@ class Config:
     SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL")
     SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_API_KEY")
 
+    # Google Cloud Pub/Sub Configuration
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
+    PUBSUB_PUSH_ENDPOINT: str = os.getenv("PUBSUB_PUSH_ENDPOINT", "/pubsub/push")
+
+    # Pub/Sub Topic Names (with environment prefix)
+    # Format: {environment}_{base_name}
+    # These replace the QUEUE_* constants for Pub/Sub migration
+    TOPIC_PROJECT_EVENT: str = f"{os.getenv('ENVIRONMENT', 'dev')}_project_event"
+    TOPIC_DOWNLOAD_IMAGE: str = f"{os.getenv('ENVIRONMENT', 'dev')}_download_image"
+    TOPIC_CUTOUT: str = f"{os.getenv('ENVIRONMENT', 'dev')}_cutout"
+    TOPIC_ANALYZE_IMAGE: str = f"{os.getenv('ENVIRONMENT', 'dev')}_analyze_image"
+    TOPIC_DISQUALIFY_CUTOUT: str = (
+        f"{os.getenv('ENVIRONMENT', 'dev')}_disqualify_cutout"
+    )
+    TOPIC_CREATE_ANNOTATION: str = (
+        f"{os.getenv('ENVIRONMENT', 'dev')}_create_annotation"
+    )
+    TOPIC_ANNOTATE_DATASET: str = f"{os.getenv('ENVIRONMENT', 'dev')}_annotate_dataset"
+
     @classmethod
     def get_mongodb_uri(cls) -> str:
         """Get MongoDB connection URI.
