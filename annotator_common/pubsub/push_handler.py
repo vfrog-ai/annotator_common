@@ -14,19 +14,27 @@ def parse_pubsub_push_message(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Parse a Pub/Sub push subscription message from the request body.
 
-    Pub/Sub push format:
-    {
-        "message": {
-            "data": "base64-encoded-json-string",
-            "messageId": "message-id",
-            "publishTime": "2023-01-01T00:00:00.000Z",
-            "attributes": {...}
-        },
-        "subscription": "projects/.../subscriptions/..."
-    }
+    Supports two formats:
+    1. Pub/Sub push format (from real Pub/Sub):
+       {
+           "message": {
+               "data": "base64-encoded-json-string",
+               "messageId": "message-id",
+               "publishTime": "2023-01-01T00:00:00.000Z",
+               "attributes": {...}
+           },
+           "subscription": "projects/.../subscriptions/..."
+       }
+    
+    2. Direct format (from LOCAL_MODE HTTP calls):
+       {
+           "project_iteration_id": "...",
+           "image_url": "...",
+           ...
+       }
 
     Args:
-        request_data: The request body from Pub/Sub push
+        request_data: The request body from Pub/Sub push or direct HTTP call
 
     Returns:
         Parsed message payload as dictionary
@@ -35,7 +43,15 @@ def parse_pubsub_push_message(request_data: Dict[str, Any]) -> Dict[str, Any]:
         ValueError: If message format is invalid
     """
     try:
-        # Extract message from request
+        # Check if this is a direct message (LOCAL_MODE format)
+        # Direct messages have business fields like project_iteration_id, image_url, etc.
+        # Pub/Sub format has a "message" field with "data" inside
+        if "message" not in request_data:
+            # This is a direct message format (LOCAL_MODE)
+            logger.debug("Received direct message format (LOCAL_MODE), using as-is")
+            return request_data
+
+        # This is Pub/Sub push format
         message = request_data.get("message", {})
         if not message:
             raise ValueError("Missing 'message' field in Pub/Sub push request")
