@@ -79,7 +79,8 @@ class PubSubPublisher:
         Raises:
             Exception: If publishing fails after all retries
         """
-        topic_path = self._get_topic_path(topic_name)
+        # Ensure topic exists before publishing (especially important for emulator)
+        topic_path = await asyncio.to_thread(self.ensure_topic_exists, topic_name)
 
         # Encode message as JSON bytes
         message_bytes = json.dumps(message).encode("utf-8")
@@ -125,7 +126,7 @@ class PubSubPublisher:
                 # Rate limiting or service unavailable - retry with exponential backoff
                 last_exception = e
                 if attempt < max_retries:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
                     logger.warning(
                         f"Rate limit or service unavailable publishing to {topic_name} "
                         f"(attempt {attempt + 1}/{max_retries + 1}): {e}. "
@@ -149,9 +150,11 @@ class PubSubPublisher:
         # Should never reach here, but just in case
         if last_exception:
             raise last_exception
-        raise Exception(f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts")
+        raise Exception(
+            f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts"
+        )
 
-    async def ensure_topic_exists(self, topic_name: str) -> str:
+    def ensure_topic_exists(self, topic_name: str) -> str:
         """
         Ensure a topic exists, creating it if necessary.
 
