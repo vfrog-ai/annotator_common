@@ -113,30 +113,37 @@ def setup_logger(
         # Add console handler to root logger
         root_logger.addHandler(console_handler)
 
-    # Add Elasticsearch handler if available and not in Cloud Run
-    # In Cloud Run, stdout/stderr automatically go to Cloud Logging
-    import os
+        # Add Elasticsearch handler if available and not in Cloud Run
+        # In Cloud Run, stdout/stderr automatically go to Cloud Logging
+        # Skip Elasticsearch in local mode or if explicitly disabled
+        import os
 
-    skip_elasticsearch = (
-        os.getenv("K_SERVICE") is not None
-    )  # K_SERVICE is set by Cloud Run
+        skip_elasticsearch = (
+            os.getenv("K_SERVICE") is not None  # K_SERVICE is set by Cloud Run
+            or os.getenv("LOCAL_MODE", "false").lower() == "true"  # Skip in local mode
+            or os.getenv("DISABLE_ELASTICSEARCH", "false").lower() == "true"  # Explicitly disabled
+        )
 
-    if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch:
-        try:
-            es_client = Elasticsearch(
-                [f"http://{Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}"],
-                verify_certs=False,
-                ssl_show_warn=False,
-                request_timeout=2,
-                max_retries=0,
-            )
-            es_handler = ElasticsearchHandler(es_client)
-            es_handler.setLevel(getattr(logging, level.upper()))
-            es_handler.setFormatter(formatter)
-            root_logger.addHandler(es_handler)
-        except Exception:
-            # Silently fail if Elasticsearch is not available
-            pass
+        if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch:
+            try:
+                # Test connection before adding handler to avoid spam
+                es_client = Elasticsearch(
+                    [f"http://{Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}"],
+                    verify_certs=False,
+                    ssl_show_warn=False,
+                    request_timeout=2,
+                    max_retries=0,
+                )
+                # Quick health check - if this fails, don't add the handler
+                es_client.ping(request_timeout=1)
+                es_handler = ElasticsearchHandler(es_client)
+                es_handler.setLevel(getattr(logging, level.upper()))
+                es_handler.setFormatter(formatter)
+                root_logger.addHandler(es_handler)
+            except Exception:
+                # Silently fail if Elasticsearch is not available
+                # Don't log errors to avoid spam
+                pass
 
     # Return a named logger that will inherit from root logger
     return logging.getLogger(name)
