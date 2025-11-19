@@ -42,9 +42,18 @@ LOCAL_SERVICE_URLS = {
 _publisher_client: Optional[pubsub_v1.PublisherClient] = None
 
 
-def get_publisher_client() -> pubsub_v1.PublisherClient:
-    """Get or create the singleton Pub/Sub publisher client."""
+def get_publisher_client() -> Optional[pubsub_v1.PublisherClient]:
+    """Get or create the singleton Pub/Sub publisher client.
+
+    Returns None if LOCAL_MODE=true (direct HTTP calls are used instead).
+    """
     global _publisher_client
+
+    # In local mode, don't create a Pub/Sub client
+    if LOCAL_MODE:
+        logger.debug("LOCAL_MODE enabled - skipping Pub/Sub client creation")
+        return None
+
     if _publisher_client is None:
         _publisher_client = pubsub_v1.PublisherClient()
         logger.info("Created Pub/Sub publisher client")
@@ -82,8 +91,14 @@ class PubSubPublisher:
                     "GCP_PROJECT_ID must be set in environment or passed to PubSubPublisher"
                 )
 
+        # Only create client if not in local mode
         self._client = get_publisher_client()
-        logger.info(f"Initialized PubSubPublisher for project: {self.project_id}")
+        if self._client is None:
+            logger.info(
+                f"Initialized PubSubPublisher in LOCAL_MODE for project: {self.project_id}"
+            )
+        else:
+            logger.info(f"Initialized PubSubPublisher for project: {self.project_id}")
 
     def _get_topic_path(self, topic_name: str) -> str:
         """Get full topic path."""
