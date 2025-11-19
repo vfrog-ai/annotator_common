@@ -23,11 +23,11 @@ class CloudLoggingJSONFormatter(logging.Formatter):
     Custom formatter that outputs JSON for Cloud Logging when message contains structured data.
     Cloud Logging automatically parses JSON from stdout if the line starts with '{'.
     """
-    
+
     def format(self, record):
         # Check if message looks like JSON (starts with '{')
         message = record.getMessage()
-        if message.strip().startswith('{'):
+        if message.strip().startswith("{"):
             try:
                 # Try to parse as JSON - if it's valid, output it directly
                 parsed = json.loads(message)
@@ -46,7 +46,7 @@ class CloudLoggingJSONFormatter(logging.Formatter):
             except (json.JSONDecodeError, ValueError, TypeError):
                 # If JSON parsing fails, fall back to standard format
                 pass
-        
+
         # Standard format for non-JSON messages
         return super().format(record)
 
@@ -92,28 +92,26 @@ def setup_logger(
     name = service_name or Config.SERVICE_NAME
     level = log_level or Config.LOG_LEVEL
 
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, level.upper()))
+    # Configure root logger to ensure all loggers inherit handlers
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, level.upper()))
 
-    # Avoid duplicate handlers
-    if logger.handlers:
-        return logger
+    # Avoid duplicate handlers on root logger
+    if not root_logger.handlers:
+        # Create console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(getattr(logging, level.upper()))
 
-    # Create console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(getattr(logging, level.upper()))
+        # Use custom formatter that outputs JSON for Cloud Logging when structured fields are present
+        # For regular logs, use standard format
+        formatter = CloudLoggingJSONFormatter(
+            fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        console_handler.setFormatter(formatter)
 
-    # Use custom formatter that outputs JSON for Cloud Logging when structured fields are present
-    # For regular logs, use standard format
-    formatter = CloudLoggingJSONFormatter(
-        fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    console_handler.setFormatter(formatter)
-
-    # Add console handler
-    logger.addHandler(console_handler)
+        # Add console handler to root logger
+        root_logger.addHandler(console_handler)
 
     # Add Elasticsearch handler if available and not in Cloud Run
     # In Cloud Run, stdout/stderr automatically go to Cloud Logging
@@ -135,17 +133,27 @@ def setup_logger(
             es_handler = ElasticsearchHandler(es_client)
             es_handler.setLevel(getattr(logging, level.upper()))
             es_handler.setFormatter(formatter)
-            logger.addHandler(es_handler)
+            root_logger.addHandler(es_handler)
         except Exception:
             # Silently fail if Elasticsearch is not available
             pass
 
-    return logger
+    # Return a named logger that will inherit from root logger
+    return logging.getLogger(name)
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get or create a logger with the given name."""
-    return logging.getLogger(name)
+    """Get or create a logger with the given name, setting it up if needed."""
+    logger = logging.getLogger(name)
+
+    # If logger doesn't have handlers, set it up
+    if not logger.handlers:
+        # Use Config.SERVICE_NAME (from environment) for the service name
+        # but keep the module name for the logger name
+        # This ensures logs show the correct service name while maintaining module-level logging
+        return setup_logger(service_name=None)  # None will use Config.SERVICE_NAME
+
+    return logger
 
 
 class StructuredLogger:
@@ -162,12 +170,12 @@ class StructuredLogger:
     ) -> str:
         """
         Format message with structured fields for Cloud Logging.
-        
+
         For Cloud Logging to parse JSON automatically, we need to output the entire
         log entry as JSON. However, to maintain compatibility with the existing formatter,
         we'll include the structured fields in the message in a way that Cloud Logging
         can extract, while still showing the message in the log.
-        
+
         We'll use a format that Cloud Logging can parse: include JSON at the start
         of the message, followed by the readable message.
         """
@@ -184,24 +192,14 @@ class StructuredLogger:
             return json_str
         return message
 
-    def debug(
-        self,
-        message: str,
-        project_iteration_id: Optional[str] = None,
-        **kwargs
-    ):
+    def debug(self, message: str, project_iteration_id: Optional[str] = None, **kwargs):
         """Log debug message with optional structured fields."""
         formatted = self._format_structured_message(
             message, project_iteration_id, **kwargs
         )
         self.logger.debug(formatted)
 
-    def info(
-        self,
-        message: str,
-        project_iteration_id: Optional[str] = None,
-        **kwargs
-    ):
+    def info(self, message: str, project_iteration_id: Optional[str] = None, **kwargs):
         """Log info message with optional structured fields."""
         formatted = self._format_structured_message(
             message, project_iteration_id, **kwargs
@@ -209,10 +207,7 @@ class StructuredLogger:
         self.logger.info(formatted)
 
     def warning(
-        self,
-        message: str,
-        project_iteration_id: Optional[str] = None,
-        **kwargs
+        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
     ):
         """Log warning message with optional structured fields."""
         formatted = self._format_structured_message(
@@ -225,7 +220,7 @@ class StructuredLogger:
         message: str,
         project_iteration_id: Optional[str] = None,
         exc_info: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """Log error message with optional structured fields."""
         formatted = self._format_structured_message(
@@ -234,10 +229,7 @@ class StructuredLogger:
         self.logger.error(formatted, exc_info=exc_info)
 
     def critical(
-        self,
-        message: str,
-        project_iteration_id: Optional[str] = None,
-        **kwargs
+        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
     ):
         """Log critical message with optional structured fields."""
         formatted = self._format_structured_message(
@@ -253,13 +245,12 @@ class StructuredLogger:
 def get_structured_logger(name: str) -> StructuredLogger:
     """
     Get a structured logger that supports project_iteration_id filtering.
-    
+
     Usage:
         logger = get_structured_logger(__name__)
         logger.info("Processing image", project_iteration_id="project-123")
-        
+
     In Cloud Logging Explorer, you can then filter by:
         jsonPayload.project_iteration_id="project-123"
     """
     return StructuredLogger(logging.getLogger(name))
-
