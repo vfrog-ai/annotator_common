@@ -1,5 +1,6 @@
 """
 Google Cloud Pub/Sub publisher for async message publishing.
+Supports both Pub/Sub (production) and direct HTTP calls (local development).
 """
 
 import json
@@ -8,10 +9,34 @@ import asyncio
 from typing import Dict, Any, Optional
 from google.cloud import pubsub_v1
 from google.api_core import exceptions
+import aiohttp
 from annotator_common.config import Config
 from annotator_common.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Local mode flag - when True, make direct HTTP calls instead of using Pub/Sub
+LOCAL_MODE = os.getenv("LOCAL_MODE", "false").lower() == "true"
+
+# Service URL mappings for local mode (topic_name -> service_url)
+LOCAL_SERVICE_URLS = {
+    "download_image": os.getenv(
+        "IMAGE_DOWNLOAD_SERVICE_URL", "http://image-download-service:8080"
+    ),
+    "cutout": os.getenv("CUTOUT_SERVICE_URL", "http://cutout-service:8080"),
+    "analyze_image": os.getenv(
+        "IMAGE_ANALYSIS_SERVICE_URL", "http://image-analysis-service:8080"
+    ),
+    "create_annotation": os.getenv(
+        "ANNOTATION_SERVICE_URL", "http://annotation-service:8080"
+    ),
+    "annotate_dataset": os.getenv(
+        "ANNOTATION_SERVICE_URL", "http://annotation-service:8080"
+    ),
+    "project_event": os.getenv(
+        "PROJECT_MANAGER_SERVICE_URL", "http://project-manager:8080"
+    ),
+}
 
 # Global publisher client (singleton)
 _publisher_client: Optional[pubsub_v1.PublisherClient] = None
@@ -36,7 +61,16 @@ class PubSubPublisher:
         Args:
             project_id: GCP project ID. If None, uses Config.GCP_PROJECT_ID or
                        attempts to detect from environment.
+                       Not required when LOCAL_MODE=true.
         """
+        # In local mode, skip GCP_PROJECT_ID validation
+        if LOCAL_MODE:
+            self.project_id = project_id or Config.GCP_PROJECT_ID or "local-project"
+            self._client = None
+            logger.info("Initialized PubSubPublisher in LOCAL_MODE (direct HTTP calls)")
+            return
+
+        # Production mode: require GCP_PROJECT_ID
         self.project_id = project_id or Config.GCP_PROJECT_ID
         if not self.project_id:
             # Try to detect from environment
@@ -55,6 +89,97 @@ class PubSubPublisher:
         """Get full topic path."""
         return self._client.topic_path(self.project_id, topic_name)
 
+    async def _publish_via_http(
+        self,
+        topic_name: str,
+        message: Dict[str, Any],
+        max_retries: int = 3,
+    ) -> str:
+        """
+        Publish message via direct HTTP call (local mode).
+
+        Args:
+            topic_name: Name of the topic (with environment prefix, e.g., "staging_download_image")
+            message: Message payload as dictionary
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Mock message ID (for compatibility)
+
+        Raises:
+            Exception: If HTTP call fails after all retries
+        """
+        # Extract base topic name (remove environment prefix)
+        base_topic = topic_name.split("_", 1)[-1] if "_" in topic_name else topic_name
+
+        # Get service URL
+        service_url = LOCAL_SERVICE_URLS.get(base_topic)
+        if not service_url:
+            raise ValueError(
+                f"No service URL configured for topic: {base_topic}. "
+                f"Available topics: {list(LOCAL_SERVICE_URLS.keys())}"
+            )
+
+        # Determine endpoint path based on topic
+        endpoint_map = {
+            "download_image": "/pubsub/push/download_image",
+            "cutout": "/pubsub/push/cutout",
+            "analyze_image": "/pubsub/push/analyze_image",
+            "create_annotation": "/pubsub/push/create_annotation",
+            "annotate_dataset": "/pubsub/push/annotate_dataset",
+            "project_event": "/pubsub/push/project_event",
+        }
+        endpoint = endpoint_map.get(base_topic, f"/pubsub/push/{base_topic}")
+        url = f"{service_url}{endpoint}"
+
+        # Make HTTP POST request with retry logic
+        last_exception = None
+        async with aiohttp.ClientSession() as session:
+            for attempt in range(max_retries + 1):
+                try:
+                    async with session.post(
+                        url,
+                        json=message,
+                        timeout=aiohttp.ClientTimeout(total=30),
+                    ) as response:
+                        if response.status == 200:
+                            logger.info(
+                                f"Published message via HTTP to {url}: status={response.status}, "
+                                f"topic={topic_name}"
+                            )
+                            return f"http-{topic_name}-{attempt}"  # Mock message ID
+                        else:
+                            error_text = await response.text()
+                            raise Exception(
+                                f"HTTP {response.status} from {url}: {error_text}"
+                            )
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                        logger.warning(
+                            f"HTTP call failed to {url} (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                            f"Retrying in {wait_time}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(
+                            f"Failed to publish message via HTTP to {url} after {max_retries + 1} attempts: {e}, "
+                            f"message: {message}"
+                        )
+                        raise
+                except Exception as e:
+                    logger.error(
+                        f"Failed to publish message via HTTP to {url}: {e}, message: {message}"
+                    )
+                    raise
+
+        if last_exception:
+            raise last_exception
+        raise Exception(
+            f"Failed to publish message via HTTP to {url} after {max_retries + 1} attempts"
+        )
+
     async def publish_message(
         self,
         topic_name: str,
@@ -65,20 +190,26 @@ class PubSubPublisher:
     ) -> str:
         """
         Publish a message to a Pub/Sub topic with retry logic for rate limiting.
+        In LOCAL_MODE, makes direct HTTP calls instead of using Pub/Sub.
 
         Args:
             topic_name: Name of the topic (with environment prefix, e.g., "staging_download_image")
             message: Message payload as dictionary
-            attributes: Optional message attributes
-            ordering_key: Optional ordering key for ordered delivery
+            attributes: Optional message attributes (ignored in local mode)
+            ordering_key: Optional ordering key for ordered delivery (ignored in local mode)
             max_retries: Maximum number of retry attempts for rate limit errors (default: 3)
 
         Returns:
-            Message ID from Pub/Sub
+            Message ID from Pub/Sub (or mock ID in local mode)
 
         Raises:
             Exception: If publishing fails after all retries
         """
+        # In local mode, make direct HTTP calls
+        if LOCAL_MODE:
+            return await self._publish_via_http(topic_name, message, max_retries)
+
+        # Production mode: use Pub/Sub
         # Ensure topic exists before publishing (especially important for emulator)
         topic_path = await asyncio.to_thread(self.ensure_topic_exists, topic_name)
 
@@ -157,6 +288,7 @@ class PubSubPublisher:
     def ensure_topic_exists(self, topic_name: str) -> str:
         """
         Ensure a topic exists, creating it if necessary.
+        No-op in LOCAL_MODE.
 
         Args:
             topic_name: Name of the topic
@@ -164,6 +296,10 @@ class PubSubPublisher:
         Returns:
             Full topic path
         """
+        if LOCAL_MODE:
+            # No-op in local mode
+            return f"local://{topic_name}"
+
         topic_path = self._get_topic_path(topic_name)
 
         try:
