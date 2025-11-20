@@ -131,7 +131,14 @@ def _create_collections():
         # Cutout analysis collection
         cutout_analysis = db.cutout_analysis
         try:
-            # Compound unique index: same cutout_analysis_id can exist in different projects
+            # Compound unique index: one analysis per cutout per project
+            # This prevents duplicate analyses for the same cutout in the same project
+            cutout_analysis.create_index(
+                [("cutout_id", 1), ("project_iteration_id", 1)],
+                unique=True,
+                background=True,
+            )
+            # Also keep index on cutout_analysis_id for lookups
             cutout_analysis.create_index(
                 [("cutout_analysis_id", 1), ("project_iteration_id", 1)],
                 unique=True,
