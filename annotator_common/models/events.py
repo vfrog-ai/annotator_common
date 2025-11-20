@@ -14,6 +14,7 @@ class EventType(str, Enum):
     IMAGE_DOWNLOADED = "image_downloaded"
     CUTOUTS_READY = "cutouts_ready"
     IMAGE_ANALYZED = "image_analyzed"
+    ANALYZE_IMAGE = "analyze_image"
     ANNOTATION_CREATED = "annotation_created"
     ANNOTATE_DATASET = "annotate_dataset"
     PROJECT_COMPLETE = "project_complete"
@@ -91,4 +92,3 @@ class ErrorEvent(ProjectEvent):
     error_message: str
     service_name: str
     error_type: Optional[str] = None  # Exception class name
-
