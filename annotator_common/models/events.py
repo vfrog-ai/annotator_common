@@ -11,12 +11,13 @@ class EventType(str, Enum):
     """Type of project events."""
 
     START_PROJECT_ITERATION = "start_project_iteration"
-    PROJECT_CREATED = "project_created"
     DOWNLOAD_IMAGE = "download_image"
     IMAGE_DOWNLOADED = "image_downloaded"
     CUTOUT_EXTRACTION = "cutout_extraction"
     CUTOUTS_READY = "cutouts_ready"
-    IMAGE_ANALYZED = "image_analyzed"
+    IMAGE_ANALYZED = "image_analyzed"  # Deprecated - use PRODUCT_IMAGE_ANALYZED or DATASET_IMAGE_ANALYZED
+    PRODUCT_IMAGE_ANALYZED = "product_image_analyzed"
+    DATASET_IMAGE_ANALYZED = "dataset_image_analyzed"
     ANALYZE_IMAGE = "analyze_image"
     ANNOTATION_CREATED = "annotation_created"
     ANNOTATE_DATASET = "annotate_dataset"
@@ -76,8 +77,25 @@ class ImageAnalyzedEvent(ProjectEvent):
 
     analysis_type: str  # 'initial' or 'detailed'
     analysis_result: Dict[str, Any]
-    image_type: str
+    image_type: (
+        str  # Deprecated - use ProductImageAnalyzedEvent or DatasetImageAnalyzedEvent
+    )
     cutout_id: Optional[str] = None
+
+
+class ProductImageAnalyzedEvent(ProjectEvent):
+    """Event for when a product image analysis is complete."""
+
+    analysis_type: str  # 'initial' or 'detailed'
+    analysis_result: Dict[str, Any]
+
+
+class DatasetImageAnalyzedEvent(ProjectEvent):
+    """Event for when a dataset image (cutout) analysis is complete."""
+
+    analysis_type: str  # 'initial' or 'detailed'
+    analysis_result: Dict[str, Any]
+    cutout_id: str
 
 
 class AnnotationCreatedEvent(ProjectEvent):
