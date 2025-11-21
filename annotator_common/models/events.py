@@ -104,7 +104,7 @@ class AnnotationCreatedEvent(ProjectEvent):
 
     annotated_image_path: str
     label: str
-    cutout_id: str
+    dataset_image_id: str
     product_image_id: str
 
 
