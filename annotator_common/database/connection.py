@@ -177,6 +177,102 @@ def _create_collections():
                 f"Could not create indexes for analysis_config collection: {e}"
             )
 
+        # Processed events collection - tracks idempotency for Pub/Sub messages
+        processed_events = db.processed_events
+        try:
+            # Index for image_downloaded events (product)
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("image_type", 1),
+                    ("product_image_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={
+                    "event_type": "image_downloaded",
+                    "image_type": "product",
+                },
+                background=True,
+            )
+            # Index for image_downloaded events (dataset)
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("image_type", 1),
+                    ("dataset_image_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={
+                    "event_type": "image_downloaded",
+                    "image_type": "dataset",
+                },
+                background=True,
+            )
+            # Index for cutouts_ready events
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("dataset_image_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "cutouts_ready"},
+                background=True,
+            )
+            # Index for image_analyzed events (product)
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("image_type", 1),
+                    ("product_image_id", 1),
+                    ("analysis_type", 1),
+                ],
+                unique=True,
+                partialFilterExpression={
+                    "event_type": "image_analyzed",
+                    "image_type": "product",
+                },
+                background=True,
+            )
+            # Index for image_analyzed events (cutout)
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("image_type", 1),
+                    ("cutout_id", 1),
+                    ("analysis_type", 1),
+                ],
+                unique=True,
+                partialFilterExpression={
+                    "event_type": "image_analyzed",
+                    "image_type": "cutout",
+                },
+                background=True,
+            )
+            # Index for annotation_created events
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("dataset_image_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "annotation_created"},
+                background=True,
+            )
+            # General indexes for querying
+            processed_events.create_index("event_type", background=True)
+            processed_events.create_index("project_iteration_id", background=True)
+            processed_events.create_index("processed_at", background=True)
+        except Exception as e:
+            logger.warning(
+                f"Could not create indexes for processed_events collection: {e}"
+            )
+
     except Exception as e:
         logger.warning(
             f"Error creating collections/indexes: {e}. Indexes may already exist or need manual creation."
