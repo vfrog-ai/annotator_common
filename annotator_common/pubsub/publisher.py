@@ -27,9 +27,6 @@ LOCAL_SERVICE_URLS = {
     "analyze_image": os.getenv(
         "IMAGE_ANALYSIS_SERVICE_URL", "http://image-analysis-service:8080"
     ),
-    "create_annotation": os.getenv(
-        "ANNOTATION_SERVICE_URL", "http://annotation-service:8080"
-    ),
     "annotate_dataset": os.getenv(
         "ANNOTATION_SERVICE_URL", "http://annotation-service:8080"
     ),
@@ -140,7 +137,6 @@ class PubSubPublisher:
             "download_image": "/pubsub/push/download_image",
             "cutout": "/pubsub/push/cutout",
             "analyze_image": "/pubsub/push/analyze_image",
-            "create_annotation": "/pubsub/push/create_annotation",
             "annotate_dataset": "/pubsub/push/annotate_dataset",
             "project_event": "/pubsub/push/project_event",
         }

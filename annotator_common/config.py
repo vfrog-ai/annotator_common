@@ -45,9 +45,6 @@ class Config:
     QUEUE_DISQUALIFY_CUTOUT: str = (
         f"{os.getenv('ENVIRONMENT', 'dev')}_disqualify_cutout"
     )
-    QUEUE_CREATE_ANNOTATION: str = (
-        f"{os.getenv('ENVIRONMENT', 'dev')}_create_annotation"
-    )
     QUEUE_ANNOTATE_DATASET: str = f"{os.getenv('ENVIRONMENT', 'dev')}_annotate_dataset"
     QUEUE_VFROG_ANNOTATION: str = (
         f"{os.getenv('ENVIRONMENT', 'dev')}_vfrog_annotation_event"
@@ -77,9 +74,6 @@ class Config:
     TOPIC_ANALYZE_IMAGE: str = f"{os.getenv('ENVIRONMENT', 'dev')}_analyze_image"
     TOPIC_DISQUALIFY_CUTOUT: str = (
         f"{os.getenv('ENVIRONMENT', 'dev')}_disqualify_cutout"
-    )
-    TOPIC_CREATE_ANNOTATION: str = (
-        f"{os.getenv('ENVIRONMENT', 'dev')}_create_annotation"
     )
     TOPIC_ANNOTATE_DATASET: str = f"{os.getenv('ENVIRONMENT', 'dev')}_annotate_dataset"
 
