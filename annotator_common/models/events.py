@@ -18,7 +18,8 @@ class EventType(str, Enum):
     IMAGE_ANALYZED = "image_analyzed"  # Deprecated - use PRODUCT_IMAGE_ANALYZED or DATASET_IMAGE_ANALYZED
     PRODUCT_IMAGE_ANALYZED = "product_image_analyzed"
     DATASET_IMAGE_ANALYZED = "dataset_image_analyzed"
-    ANALYZE_IMAGE = "analyze_image"
+    ANALYZE_PRODUCT_IMAGE = "analyze_product_image"
+    ANALYZE_DATASET_IMAGE = "analyze_dataset_image"
     ANNOTATION_CREATED = "annotation_created"
     ANNOTATE_DATASET = "annotate_dataset"
     PROJECT_COMPLETE = "project_complete"
