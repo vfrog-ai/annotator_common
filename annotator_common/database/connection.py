@@ -159,15 +159,16 @@ def _create_collections():
         # Annotations collection
         annotations = db.annotations
         try:
-            # Compound unique index: same annotation_id can exist in different projects
+            # Compound unique index: one annotation per cutout per project
             annotations.create_index(
-                [("annotation_id", 1), ("project_iteration_id", 1)],
+                [("cutout_id", 1), ("project_iteration_id", 1)],
                 unique=True,
                 background=True,
             )
             annotations.create_index("project_iteration_id", background=True)
             annotations.create_index("cutout_id", background=True)
             annotations.create_index("product_image_id", background=True)
+            annotations.create_index("annotation_id", background=True)
         except Exception as e:
             logger.warning(f"Could not create indexes for annotations collection: {e}")
 
@@ -276,6 +277,17 @@ def _create_collections():
                 ],
                 unique=True,
                 partialFilterExpression={"event_type": "start_project_iteration"},
+                background=True,
+            )
+            # Index for annotate_dataset events
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("dataset_image_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "annotate_dataset"},
                 background=True,
             )
             # General indexes for querying
