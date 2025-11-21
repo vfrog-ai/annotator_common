@@ -10,8 +10,11 @@ from pydantic import BaseModel, Field
 class EventType(str, Enum):
     """Type of project events."""
 
+    START_PROJECT_ITERATION = "start_project_iteration"
     PROJECT_CREATED = "project_created"
+    DOWNLOAD_IMAGE = "download_image"
     IMAGE_DOWNLOADED = "image_downloaded"
+    CUTOUT_EXTRACTION = "cutout_extraction"
     CUTOUTS_READY = "cutouts_ready"
     IMAGE_ANALYZED = "image_analyzed"
     ANALYZE_IMAGE = "analyze_image"

@@ -78,11 +78,15 @@ def _create_collections():
         # Project iterations collection
         project_iterations = db.project_iterations
         try:
-            project_iterations.create_index("project_iteration_id", unique=True, background=True)
+            project_iterations.create_index(
+                "project_iteration_id", unique=True, background=True
+            )
             project_iterations.create_index("status", background=True)
             project_iterations.create_index("created_at", background=True)
         except Exception as e:
-            logger.warning(f"Could not create indexes for project_iterations collection: {e}")
+            logger.warning(
+                f"Could not create indexes for project_iterations collection: {e}"
+            )
 
         # Product images collection
         product_images = db.product_images
@@ -264,6 +268,16 @@ def _create_collections():
                 partialFilterExpression={"event_type": "annotation_created"},
                 background=True,
             )
+            # Index for start_project_iteration events
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "start_project_iteration"},
+                background=True,
+            )
             # General indexes for querying
             processed_events.create_index("event_type", background=True)
             processed_events.create_index("project_iteration_id", background=True)
@@ -285,4 +299,3 @@ def close_database():
     if _client:
         _client.close()
         _client = None
-
