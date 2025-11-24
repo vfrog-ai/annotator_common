@@ -29,18 +29,19 @@ def init_database() -> None:
     global _client, _database
 
     uri = Config.get_mongodb_uri()
-    
+
     # Handle SSL certificate verification for MongoDB Atlas
     # In LOCAL_MODE, allow invalid certificates for testing
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
-    
+
     # Check if URI is a MongoDB Atlas connection (mongodb+srv://)
     is_atlas = uri.startswith("mongodb+srv://")
-    
+
     if is_atlas and local_mode:
         # For local testing with Atlas, allow invalid certificates
         # This is safe for testing but should not be used in production
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(
             "LOCAL_MODE enabled: Allowing invalid SSL certificates for MongoDB Atlas connection. "
@@ -54,7 +55,7 @@ def init_database() -> None:
         else:
             # No query parameters yet
             uri += "?tlsAllowInvalidCertificates=true"
-    
+
     _client = MongoClient(uri)
 
     # Determine database name with priority:
@@ -83,7 +84,26 @@ def init_database() -> None:
         # Use config database name (Docker Compose mode)
         _database = _client[Config.MONGODB_DATABASE]
 
-    # Create collections with indexes
+    # Verify connection and authentication before creating indexes
+    try:
+        # Test the connection by running a simple command
+        _client.admin.command("ping")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        error_msg = str(e)
+        if "Authentication failed" in error_msg or "bad auth" in error_msg.lower():
+            logger.error(
+                "MongoDB authentication failed. Please check your MONGODB_URI credentials. "
+                "Verify that the username and password are correct, and that special characters "
+                "in the password are URL-encoded (e.g., @ becomes %40, # becomes %23)."
+            )
+        else:
+            logger.error(f"MongoDB connection failed: {e}")
+        # Don't raise - let the service start, but it will fail when trying to use the database
+        # This allows the service to start and show a clear error message
+
+    # Create collections with indexes (will fail gracefully if auth failed)
     _create_collections()
 
 
