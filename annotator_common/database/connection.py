@@ -29,6 +29,32 @@ def init_database() -> None:
     global _client, _database
 
     uri = Config.get_mongodb_uri()
+    
+    # Handle SSL certificate verification for MongoDB Atlas
+    # In LOCAL_MODE, allow invalid certificates for testing
+    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+    
+    # Check if URI is a MongoDB Atlas connection (mongodb+srv://)
+    is_atlas = uri.startswith("mongodb+srv://")
+    
+    if is_atlas and local_mode:
+        # For local testing with Atlas, allow invalid certificates
+        # This is safe for testing but should not be used in production
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "LOCAL_MODE enabled: Allowing invalid SSL certificates for MongoDB Atlas connection. "
+            "This should only be used for local testing."
+        )
+        # Add tlsAllowInvalidCertificates to the URI
+        if "?" in uri:
+            # URI already has query parameters
+            if "tlsAllowInvalidCertificates" not in uri:
+                uri += "&tlsAllowInvalidCertificates=true"
+        else:
+            # No query parameters yet
+            uri += "?tlsAllowInvalidCertificates=true"
+    
     _client = MongoClient(uri)
 
     # Determine database name with priority:
