@@ -21,7 +21,7 @@ class Config:
     MONGODB_PORT: int = int(os.getenv("MONGODB_PORT", "27017"))
     MONGODB_USER: str = os.getenv("MONGODB_USER", "root")
     MONGODB_PASSWORD: str = os.getenv("MONGODB_PASSWORD", "example")
-    MONGODB_DATABASE: str = os.getenv("MONGODB_DATABASE", "annotation_system")
+    MONGODB_DATABASE: str = os.getenv("MONGODB_DATABASE", "annotator")
 
     # Elasticsearch Configuration
     ELASTICSEARCH_HOST: str = os.getenv("ELASTICSEARCH_HOST", "elasticsearch")

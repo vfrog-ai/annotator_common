@@ -61,7 +61,7 @@ def init_database() -> None:
     # Determine database name with priority:
     # 1. MONGODB_DATABASE environment variable (explicit override)
     # 2. Database name from MONGODB_URI path
-    # 3. Config.MONGODB_DATABASE (default: "annotation_system")
+    # 3. Config.MONGODB_DATABASE (default: "annotator")
     if "MONGODB_DATABASE" in os.environ:
         # Explicit database name override (highest priority)
         db_name = os.getenv("MONGODB_DATABASE")
