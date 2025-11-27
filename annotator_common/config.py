@@ -113,4 +113,3 @@ class Config:
 
         # Docker Compose mode: build URI from components
         return f"amqp://{cls.RABBITMQ_USER}:{cls.RABBITMQ_PASSWORD}@{cls.RABBITMQ_HOST}:{cls.RABBITMQ_PORT}{cls.RABBITMQ_VHOST}"
-

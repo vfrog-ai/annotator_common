@@ -90,6 +90,7 @@ def init_database() -> None:
         _client.admin.command("ping")
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         error_msg = str(e)
         if "Authentication failed" in error_msg or "bad auth" in error_msg.lower():
