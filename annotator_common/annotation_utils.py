@@ -85,6 +85,7 @@ def transform_annotations_for_supabase(
                     "y": y1,
                     "width": x2 - x1,
                     "height": y2 - y1,
+                    "color": "#0018F9",
                     "color_primary": ann.get("color_primary", ""),
                     "colors_secondary": ann.get("colors_secondary", [])
                 }
