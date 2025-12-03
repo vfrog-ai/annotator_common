@@ -346,6 +346,25 @@ def _create_collections():
                 f"Could not create indexes for processed_events collection: {e}"
             )
 
+        # Modal billing collection - stores Modal.com billing/usage data
+        modal_billing = db.modal_billing
+        try:
+            # Compound unique index: prevent duplicate entries for same date/function
+            modal_billing.create_index(
+                [("date", 1), ("function_name", 1), ("environment", 1)],
+                unique=True,
+                background=True,
+            )
+            # Indexes for efficient querying
+            modal_billing.create_index("date", background=True)
+            modal_billing.create_index("environment", background=True)
+            modal_billing.create_index("function_name", background=True)
+            modal_billing.create_index("created_at", background=True)
+        except Exception as e:
+            logger.warning(
+                f"Could not create indexes for modal_billing collection: {e}"
+            )
+
     except Exception as e:
         logger.warning(
             f"Error creating collections/indexes: {e}. Indexes may already exist or need manual creation."
