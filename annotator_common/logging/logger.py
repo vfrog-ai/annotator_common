@@ -273,18 +273,18 @@ def get_structured_logger(name: str) -> StructuredLogger:
     return StructuredLogger(logging.getLogger(name))
 
 
-def log_info(message: str, correlation_id: Optional[str] = None, logger_name: Optional[str] = None, **kwargs):
+def log_info(message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs):
     """
-    Log an info message with optional correlation_id.
+    Log an info message with correlation_id (always required, can be empty string).
     
-    This is a convenience function that uses structured logging when correlation_id is provided,
-    otherwise falls back to regular logging.
+    This function always uses structured logging with correlation_id.
+    project_iteration_id should be passed as a kwarg, not in the message string.
     
     Args:
-        message: The log message
-        correlation_id: Optional correlation_id for request tracing
+        message: The log message (should not include project_iteration_id in the string)
+        correlation_id: Correlation_id for request tracing (required, can be empty string)
         logger_name: Optional logger name (defaults to caller's module name)
-        **kwargs: Additional structured fields to include in the log
+        **kwargs: Additional structured fields to include in the log (e.g., project_iteration_id)
     """
     import inspect
     # Get caller's module name if not provided
@@ -296,28 +296,23 @@ def log_info(message: str, correlation_id: Optional[str] = None, logger_name: Op
         finally:
             del frame
     
-    if correlation_id:
-        # Use structured logger with correlation_id
-        structured_logger = get_structured_logger(logger_name)
-        structured_logger.info(message, correlation_id=correlation_id, **kwargs)
-    else:
-        # Use regular logger
-        logger = get_logger(logger_name)
-        logger.info(message, **kwargs)
+    # Always use structured logger with correlation_id
+    structured_logger = get_structured_logger(logger_name)
+    structured_logger.info(message, correlation_id=correlation_id, **kwargs)
 
 
-def log_warning(message: str, correlation_id: Optional[str] = None, logger_name: Optional[str] = None, **kwargs):
+def log_warning(message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs):
     """
-    Log a warning message with optional correlation_id.
+    Log a warning message with correlation_id (always required, can be empty string).
     
-    This is a convenience function that uses structured logging when correlation_id is provided,
-    otherwise falls back to regular logging.
+    This function always uses structured logging with correlation_id.
+    project_iteration_id should be passed as a kwarg, not in the message string.
     
     Args:
-        message: The log message
-        correlation_id: Optional correlation_id for request tracing
+        message: The log message (should not include project_iteration_id in the string)
+        correlation_id: Correlation_id for request tracing (required, can be empty string)
         logger_name: Optional logger name (defaults to caller's module name)
-        **kwargs: Additional structured fields to include in the log
+        **kwargs: Additional structured fields to include in the log (e.g., project_iteration_id)
     """
     import inspect
     # Get caller's module name if not provided
@@ -329,11 +324,6 @@ def log_warning(message: str, correlation_id: Optional[str] = None, logger_name:
         finally:
             del frame
     
-    if correlation_id:
-        # Use structured logger with correlation_id
-        structured_logger = get_structured_logger(logger_name)
-        structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
-    else:
-        # Use regular logger
-        logger = get_logger(logger_name)
-        logger.warning(message, **kwargs)
+    # Always use structured logger with correlation_id
+    structured_logger = get_structured_logger(logger_name)
+    structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
