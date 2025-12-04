@@ -69,6 +69,9 @@ class PubSubPublisher:
                        attempts to detect from environment.
                        Not required when LOCAL_MODE=true.
         """
+        # Cache for verified topics to avoid repeated existence checks (rate limit optimization)
+        self._verified_topics: set = set()
+        
         # In local mode, skip GCP_PROJECT_ID validation
         if LOCAL_MODE:
             self.project_id = project_id or Config.GCP_PROJECT_ID or "local-project"
@@ -299,6 +302,7 @@ class PubSubPublisher:
     def ensure_topic_exists(self, topic_name: str) -> str:
         """
         Ensure a topic exists, creating it if necessary.
+        Uses caching to avoid repeated existence checks (rate limit optimization).
         No-op in LOCAL_MODE.
 
         Args:
@@ -313,20 +317,31 @@ class PubSubPublisher:
 
         topic_path = self._get_topic_path(topic_name)
 
+        # If we've already verified this topic exists, skip the check
+        if topic_name in self._verified_topics:
+            return topic_path
+
         try:
             # Try to get the topic
             self._client.get_topic(request={"topic": topic_path})
             logger.debug(f"Topic {topic_name} already exists")
+            # Cache that we've verified this topic exists
+            self._verified_topics.add(topic_name)
         except exceptions.NotFound:
             # Topic doesn't exist, create it
             try:
                 self._client.create_topic(request={"name": topic_path})
                 logger.info(f"Created topic: {topic_name}")
+                # Cache that we've verified this topic exists
+                self._verified_topics.add(topic_name)
             except exceptions.AlreadyExists:
                 # Race condition - topic was created between check and create
                 logger.debug(f"Topic {topic_name} was created concurrently")
+                # Cache that we've verified this topic exists
+                self._verified_topics.add(topic_name)
             except Exception as e:
                 logger.warning(f"Could not create topic {topic_name}: {e}")
+                # Don't cache on error - we'll retry next time
 
         return topic_path
 
