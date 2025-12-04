@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="annotator-common",
-    version="0.2.29",
+    version="0.2.30",
     author="vfrog",
     description="Common utilities and shared code for annotator services",
     long_description=long_description,

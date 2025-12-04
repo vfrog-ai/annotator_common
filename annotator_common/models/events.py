@@ -103,7 +103,6 @@ class DatasetImageAnalyzedEvent(ProjectEvent):
 class AnnotationCreatedEvent(ProjectEvent):
     """Event for when an annotation is created."""
 
-    annotated_image_path: str
     label: str
     dataset_image_id: str
     product_image_id: str
