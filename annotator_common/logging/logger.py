@@ -174,7 +174,11 @@ class StructuredLogger:
         self.logger = logger
 
     def _format_structured_message(
-        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        **kwargs,
     ) -> str:
         """
         Format message with structured fields for Cloud Logging.
@@ -192,7 +196,7 @@ class StructuredLogger:
         formatted_message = message
         if correlation_id:
             formatted_message = f"[{correlation_id}] {message}"
-        
+
         if project_iteration_id or correlation_id or kwargs:
             structured_data: Dict[str, Any] = {
                 "message": formatted_message,
@@ -208,14 +212,26 @@ class StructuredLogger:
             return json_str
         return formatted_message
 
-    def debug(self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs):
+    def debug(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        **kwargs,
+    ):
         """Log debug message with optional structured fields."""
         formatted = self._format_structured_message(
             message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.debug(formatted)
 
-    def info(self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs):
+    def info(
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        **kwargs,
+    ):
         """Log info message with optional structured fields."""
         formatted = self._format_structured_message(
             message, project_iteration_id, correlation_id, **kwargs
@@ -223,7 +239,11 @@ class StructuredLogger:
         self.logger.info(formatted)
 
     def warning(
-        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        **kwargs,
     ):
         """Log warning message with optional structured fields."""
         formatted = self._format_structured_message(
@@ -246,7 +266,11 @@ class StructuredLogger:
         self.logger.error(formatted, exc_info=exc_info)
 
     def critical(
-        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
+        self,
+        message: str,
+        project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        **kwargs,
     ):
         """Log critical message with optional structured fields."""
         formatted = self._format_structured_message(
@@ -273,13 +297,15 @@ def get_structured_logger(name: str) -> StructuredLogger:
     return StructuredLogger(logging.getLogger(name))
 
 
-def log_info(message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs):
+def log_info(
+    message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs
+):
     """
     Log an info message with correlation_id (always required, can be empty string).
-    
+
     This function always uses structured logging with correlation_id.
     project_iteration_id should be passed as a kwarg, not in the message string.
-    
+
     Args:
         message: The log message (should not include project_iteration_id in the string)
         correlation_id: Correlation_id for request tracing (required, can be empty string)
@@ -287,27 +313,30 @@ def log_info(message: str, correlation_id: str = "", logger_name: Optional[str] 
         **kwargs: Additional structured fields to include in the log (e.g., project_iteration_id)
     """
     import inspect
+
     # Get caller's module name if not provided
     if logger_name is None:
         frame = inspect.currentframe()
         try:
             caller_frame = frame.f_back
-            logger_name = caller_frame.f_globals.get('__name__', 'root')
+            logger_name = caller_frame.f_globals.get("__name__", "root")
         finally:
             del frame
-    
+
     # Always use structured logger with correlation_id
     structured_logger = get_structured_logger(logger_name)
     structured_logger.info(message, correlation_id=correlation_id, **kwargs)
 
 
-def log_warning(message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs):
+def log_warning(
+    message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs
+):
     """
     Log a warning message with correlation_id (always required, can be empty string).
-    
+
     This function always uses structured logging with correlation_id.
     project_iteration_id should be passed as a kwarg, not in the message string.
-    
+
     Args:
         message: The log message (should not include project_iteration_id in the string)
         correlation_id: Correlation_id for request tracing (required, can be empty string)
@@ -315,15 +344,16 @@ def log_warning(message: str, correlation_id: str = "", logger_name: Optional[st
         **kwargs: Additional structured fields to include in the log (e.g., project_iteration_id)
     """
     import inspect
+
     # Get caller's module name if not provided
     if logger_name is None:
         frame = inspect.currentframe()
         try:
             caller_frame = frame.f_back
-            logger_name = caller_frame.f_globals.get('__name__', 'root')
+            logger_name = caller_frame.f_globals.get("__name__", "root")
         finally:
             del frame
-    
+
     # Always use structured logger with correlation_id
     structured_logger = get_structured_logger(logger_name)
     structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
