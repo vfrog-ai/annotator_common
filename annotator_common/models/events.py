@@ -52,7 +52,7 @@ class ProjectEvent(BaseModel):
 
     event_type: EventType
     project_iteration_id: str
-    correlation_id: str
+    correlation_id: str  # Mandatory - must be provided in all events
     dataset_image_id: Optional[str] = None
     product_image_id: Optional[str] = None
     timestamp: float = Field(default_factory=lambda: __import__("time").time())

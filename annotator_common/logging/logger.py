@@ -174,10 +174,11 @@ class StructuredLogger:
         self.logger = logger
 
     def _format_structured_message(
-        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
+        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
     ) -> str:
         """
         Format message with structured fields for Cloud Logging.
+        Includes correlation_id at the beginning of the message for better tracing.
 
         For Cloud Logging to parse JSON automatically, we need to output the entire
         log entry as JSON. However, to maintain compatibility with the existing formatter,
@@ -187,39 +188,46 @@ class StructuredLogger:
         We'll use a format that Cloud Logging can parse: include JSON at the start
         of the message, followed by the readable message.
         """
-        if project_iteration_id or kwargs:
+        # Prepend correlation_id to message if present
+        formatted_message = message
+        if correlation_id:
+            formatted_message = f"[{correlation_id}] {message}"
+        
+        if project_iteration_id or correlation_id or kwargs:
             structured_data: Dict[str, Any] = {
-                "message": message,
+                "message": formatted_message,
             }
             if project_iteration_id:
                 structured_data["project_iteration_id"] = project_iteration_id
+            if correlation_id:
+                structured_data["correlation_id"] = correlation_id
             structured_data.update(kwargs)
             # Output JSON that Cloud Logging can parse
             # The CloudLoggingJSONFormatter will detect this and output proper JSON
             json_str = json.dumps(structured_data)
             return json_str
-        return message
+        return formatted_message
 
-    def debug(self, message: str, project_iteration_id: Optional[str] = None, **kwargs):
+    def debug(self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs):
         """Log debug message with optional structured fields."""
         formatted = self._format_structured_message(
-            message, project_iteration_id, **kwargs
+            message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.debug(formatted)
 
-    def info(self, message: str, project_iteration_id: Optional[str] = None, **kwargs):
+    def info(self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs):
         """Log info message with optional structured fields."""
         formatted = self._format_structured_message(
-            message, project_iteration_id, **kwargs
+            message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.info(formatted)
 
     def warning(
-        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
+        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
     ):
         """Log warning message with optional structured fields."""
         formatted = self._format_structured_message(
-            message, project_iteration_id, **kwargs
+            message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.warning(formatted)
 
@@ -227,21 +235,22 @@ class StructuredLogger:
         self,
         message: str,
         project_iteration_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
         exc_info: bool = False,
         **kwargs,
     ):
         """Log error message with optional structured fields."""
         formatted = self._format_structured_message(
-            message, project_iteration_id, **kwargs
+            message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.error(formatted, exc_info=exc_info)
 
     def critical(
-        self, message: str, project_iteration_id: Optional[str] = None, **kwargs
+        self, message: str, project_iteration_id: Optional[str] = None, correlation_id: Optional[str] = None, **kwargs
     ):
         """Log critical message with optional structured fields."""
         formatted = self._format_structured_message(
-            message, project_iteration_id, **kwargs
+            message, project_iteration_id, correlation_id, **kwargs
         )
         self.logger.critical(formatted)
 
