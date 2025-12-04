@@ -271,3 +271,69 @@ def get_structured_logger(name: str) -> StructuredLogger:
         jsonPayload.project_iteration_id="project-123"
     """
     return StructuredLogger(logging.getLogger(name))
+
+
+def log_info(message: str, correlation_id: Optional[str] = None, logger_name: Optional[str] = None, **kwargs):
+    """
+    Log an info message with optional correlation_id.
+    
+    This is a convenience function that uses structured logging when correlation_id is provided,
+    otherwise falls back to regular logging.
+    
+    Args:
+        message: The log message
+        correlation_id: Optional correlation_id for request tracing
+        logger_name: Optional logger name (defaults to caller's module name)
+        **kwargs: Additional structured fields to include in the log
+    """
+    import inspect
+    # Get caller's module name if not provided
+    if logger_name is None:
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            logger_name = caller_frame.f_globals.get('__name__', 'root')
+        finally:
+            del frame
+    
+    if correlation_id:
+        # Use structured logger with correlation_id
+        structured_logger = get_structured_logger(logger_name)
+        structured_logger.info(message, correlation_id=correlation_id, **kwargs)
+    else:
+        # Use regular logger
+        logger = get_logger(logger_name)
+        logger.info(message, **kwargs)
+
+
+def log_warning(message: str, correlation_id: Optional[str] = None, logger_name: Optional[str] = None, **kwargs):
+    """
+    Log a warning message with optional correlation_id.
+    
+    This is a convenience function that uses structured logging when correlation_id is provided,
+    otherwise falls back to regular logging.
+    
+    Args:
+        message: The log message
+        correlation_id: Optional correlation_id for request tracing
+        logger_name: Optional logger name (defaults to caller's module name)
+        **kwargs: Additional structured fields to include in the log
+    """
+    import inspect
+    # Get caller's module name if not provided
+    if logger_name is None:
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            logger_name = caller_frame.f_globals.get('__name__', 'root')
+        finally:
+            del frame
+    
+    if correlation_id:
+        # Use structured logger with correlation_id
+        structured_logger = get_structured_logger(logger_name)
+        structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
+    else:
+        # Use regular logger
+        logger = get_logger(logger_name)
+        logger.warning(message, **kwargs)
