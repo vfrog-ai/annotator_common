@@ -60,22 +60,34 @@ def init_database() -> None:
             uri += "?tlsAllowInvalidCertificates=true"
 
     # Configure MongoDB client with write and read concerns for consistency
-    # Write Concern "majority": Ensures write is acknowledged by majority of replica set members
-    # This guarantees the write is durable and replicated before the operation returns
-    # Read Concern "majority": Ensures reads only return data that has been acknowledged by majority
-    # This provides read-after-write consistency when combined with write concern majority
-    # Read Preference "primary": Read from primary node for immediate consistency
-    # wtimeout: Maximum time to wait for write concern acknowledgment (5 seconds)
-    write_concern = WriteConcern(w="majority", wtimeout=5000)
-    read_concern = ReadConcern(level="majority")
-    read_preference = ReadPreference.PRIMARY
+    # Write Concern "majority" requires a replica set - will fail on standalone MongoDB
+    # Make it opt-in via environment variable to avoid deployment failures
+    use_strong_consistency = os.getenv("MONGODB_STRONG_CONSISTENCY", "false").lower() == "true"
     
-    _client = MongoClient(
-        uri,
-        write_concern=write_concern,
-        read_concern=read_concern,
-        read_preference=read_preference,
-    )
+    if use_strong_consistency:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("MONGODB_STRONG_CONSISTENCY enabled - using write/read concern 'majority' for replica sets")
+        # Write Concern "majority": Ensures write is acknowledged by majority of replica set members
+        # This guarantees the write is durable and replicated before the operation returns
+        # Read Concern "majority": Ensures reads only return data that has been acknowledged by majority
+        # This provides read-after-write consistency when combined with write concern majority
+        # Read Preference "primary": Read from primary node for immediate consistency
+        # wtimeout: Maximum time to wait for write concern acknowledgment (5 seconds)
+        write_concern = WriteConcern(w="majority", wtimeout=5000)
+        read_concern = ReadConcern(level="majority")
+        read_preference = ReadPreference.PRIMARY
+        
+        _client = MongoClient(
+            uri,
+            write_concern=write_concern,
+            read_concern=read_concern,
+            read_preference=read_preference,
+        )
+    else:
+        # Use default settings for standalone MongoDB or when not explicitly enabled
+        # This ensures services can start even with standalone MongoDB instances
+        _client = MongoClient(uri)
 
     # Determine database name with priority:
     # 1. MONGODB_DATABASE environment variable (explicit override)
