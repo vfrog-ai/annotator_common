@@ -7,6 +7,9 @@ from typing import Optional
 from urllib.parse import urlparse
 from pymongo import MongoClient
 from pymongo.database import Database
+from pymongo.write_concern import WriteConcern
+from pymongo.read_concern import ReadConcern
+from pymongo.read_preferences import ReadPreference
 from annotator_common.config import Config
 
 
@@ -56,7 +59,23 @@ def init_database() -> None:
             # No query parameters yet
             uri += "?tlsAllowInvalidCertificates=true"
 
-    _client = MongoClient(uri)
+    # Configure MongoDB client with write and read concerns for consistency
+    # Write Concern "majority": Ensures write is acknowledged by majority of replica set members
+    # This guarantees the write is durable and replicated before the operation returns
+    # Read Concern "majority": Ensures reads only return data that has been acknowledged by majority
+    # This provides read-after-write consistency when combined with write concern majority
+    # Read Preference "primary": Read from primary node for immediate consistency
+    # wtimeout: Maximum time to wait for write concern acknowledgment (5 seconds)
+    write_concern = WriteConcern(w="majority", wtimeout=5000)
+    read_concern = ReadConcern(level="majority")
+    read_preference = ReadPreference.PRIMARY
+    
+    _client = MongoClient(
+        uri,
+        write_concern=write_concern,
+        read_concern=read_concern,
+        read_preference=read_preference,
+    )
 
     # Determine database name with priority:
     # 1. MONGODB_DATABASE environment variable (explicit override)
