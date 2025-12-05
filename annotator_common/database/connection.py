@@ -343,6 +343,30 @@ def _create_collections():
                 partialFilterExpression={"event_type": "annotate_dataset"},
                 background=True,
             )
+            # Index for dataset_image_analyzed events (cutout analysis)
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("cutout_id", 1),
+                    ("analysis_type", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "dataset_image_analyzed"},
+                background=True,
+            )
+            # Index for product_image_analyzed events
+            processed_events.create_index(
+                [
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                    ("product_image_id", 1),
+                    ("analysis_type", 1),
+                ],
+                unique=True,
+                partialFilterExpression={"event_type": "product_image_analyzed"},
+                background=True,
+            )
             # General indexes for querying
             processed_events.create_index("event_type", background=True)
             processed_events.create_index("project_iteration_id", background=True)
