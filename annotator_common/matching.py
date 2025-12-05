@@ -52,6 +52,19 @@ def extract_key_fields(analysis: Dict) -> Dict[str, str]:
     material = ""
     json_string = ""
     
+    # Handle case where analysis itself is a JSON string
+    if isinstance(analysis, str):
+        try:
+            json_str = analysis.strip()
+            # Fix incomplete JSON by adding closing brace if missing
+            if not json_str.endswith("}") and json_str.startswith("{"):
+                json_str += "}"
+            parsed = json.loads(json_str)
+            if isinstance(parsed, dict):
+                analysis = parsed
+        except (json.JSONDecodeError, ValueError):
+            pass  # Keep original analysis if parsing fails
+    
     if isinstance(analysis, dict):
         # Handle case where analysis is wrapped in "analysis" string (unparsed JSON)
         if "analysis" in analysis and isinstance(analysis["analysis"], str):
