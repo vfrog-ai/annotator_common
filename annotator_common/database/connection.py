@@ -253,6 +253,11 @@ def _create_collections():
             annotations.create_index("cutout_id", background=True)
             annotations.create_index("product_image_id", background=True)
             annotations.create_index("annotation_id", background=True)
+            # Compound index for efficient querying by dataset_image_id and project_iteration_id
+            annotations.create_index(
+                [("dataset_image_id", 1), ("project_iteration_id", 1)],
+                background=True,
+            )
         except Exception as e:
             logger.warning(f"Could not create indexes for annotations collection: {e}")
 
@@ -449,6 +454,11 @@ def _create_collections():
         detections = db.detections
         try:
             detections.create_index("project_iteration_id", background=True)
+            # Compound index for efficient querying by dataset_images_id and project_iteration_id
+            detections.create_index(
+                [("dataset_images_id", 1), ("project_iteration_id", 1)],
+                background=True,
+            )
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for detections collection: {e}"
