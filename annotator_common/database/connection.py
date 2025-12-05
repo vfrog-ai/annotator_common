@@ -176,6 +176,11 @@ def _create_collections():
             )
             cutouts.create_index("project_iteration_id", background=True)
             cutouts.create_index("dataset_image_id", background=True)
+            # Compound index for efficient querying by dataset_image_id and project_iteration_id
+            cutouts.create_index(
+                [("dataset_image_id", 1), ("project_iteration_id", 1)],
+                background=True,
+            )
         except Exception as e:
             logger.warning(f"Could not create indexes for cutouts collection: {e}")
 
@@ -198,6 +203,7 @@ def _create_collections():
             )
             cutout_analysis.create_index("cutout_id", background=True)
             cutout_analysis.create_index("analysis_type", background=True)
+            cutout_analysis.create_index("project_iteration_id", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for cutout_analysis collection: {e}"
@@ -341,6 +347,25 @@ def _create_collections():
             processed_events.create_index("event_type", background=True)
             processed_events.create_index("project_iteration_id", background=True)
             processed_events.create_index("processed_at", background=True)
+            # Additional compound indexes for efficient querying
+            processed_events.create_index(
+                [
+                    ("analysis_type", 1),
+                    ("cutout_id", 1),
+                    ("event_type", 1),
+                    ("project_iteration_id", 1),
+                ],
+                background=True,
+            )
+            processed_events.create_index(
+                [
+                    ("analysis_type", 1),
+                    ("event_type", 1),
+                    ("product_image_id", 1),
+                    ("project_iteration_id", 1),
+                ],
+                background=True,
+            )
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for processed_events collection: {e}"
@@ -363,6 +388,15 @@ def _create_collections():
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for modal_billing collection: {e}"
+            )
+
+        # Detections collection - stores detection results from inference
+        detections = db.detections
+        try:
+            detections.create_index("project_iteration_id", background=True)
+        except Exception as e:
+            logger.warning(
+                f"Could not create indexes for detections collection: {e}"
             )
 
     except Exception as e:
