@@ -105,7 +105,8 @@ def init_database() -> None:
     else:
         # Use default settings for standalone MongoDB or when not explicitly enabled
         # This ensures services can start even with standalone MongoDB instances
-        _client = MongoClient(uri)
+        # Still apply read_preference to distribute reads across replica set
+        _client = MongoClient(uri, read_preference=read_preference)
 
     # Determine database name with priority:
     # 1. MONGODB_DATABASE environment variable (explicit override)
