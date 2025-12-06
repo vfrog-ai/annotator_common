@@ -64,19 +64,37 @@ def init_database() -> None:
     # Make it opt-in via environment variable to avoid deployment failures
     use_strong_consistency = os.getenv("MONGODB_STRONG_CONSISTENCY", "false").lower() == "true"
     
+    # Read preference configuration: controls which nodes handle read operations
+    # Options: PRIMARY (default), PRIMARY_PREFERRED, SECONDARY, SECONDARY_PREFERRED, NEAREST
+    # SECONDARY_PREFERRED: Read from secondary if available, fallback to primary
+    # This distributes read load across replica set while maintaining availability
+    read_pref_mode = os.getenv("MONGODB_READ_PREFERENCE", "SECONDARY_PREFERRED").upper()
+    read_preference_map = {
+        "PRIMARY": ReadPreference.PRIMARY,
+        "PRIMARY_PREFERRED": ReadPreference.PRIMARY_PREFERRED,
+        "SECONDARY": ReadPreference.SECONDARY,
+        "SECONDARY_PREFERRED": ReadPreference.SECONDARY_PREFERRED,
+        "NEAREST": ReadPreference.NEAREST,
+    }
+    read_preference = read_preference_map.get(read_pref_mode, ReadPreference.SECONDARY_PREFERRED)
+    
     if use_strong_consistency:
         import logging
         logger = logging.getLogger(__name__)
-        logger.info("MONGODB_STRONG_CONSISTENCY enabled - using write/read concern 'majority' for replica sets")
+        logger.info(
+            f"MONGODB_STRONG_CONSISTENCY enabled - using write/read concern 'majority' for replica sets, "
+            f"read preference: {read_pref_mode}"
+        )
         # Write Concern "majority": Ensures write is acknowledged by majority of replica set members
         # This guarantees the write is durable and replicated before the operation returns
         # Read Concern "majority": Ensures reads only return data that has been acknowledged by majority
         # This provides read-after-write consistency when combined with write concern majority
-        # Read Preference "primary": Read from primary node for immediate consistency
+        # Read Preference: Configurable via MONGODB_READ_PREFERENCE env var
+        #   - SECONDARY_PREFERRED (default): Distributes reads to secondaries, falls back to primary
+        #   - PRIMARY: All reads go to primary (strongest consistency, no load distribution)
         # wtimeout: Maximum time to wait for write concern acknowledgment (5 seconds)
         write_concern = WriteConcern(w="majority", wtimeout=5000)
         read_concern = ReadConcern(level="majority")
-        read_preference = ReadPreference.PRIMARY
         
         _client = MongoClient(
             uri,
