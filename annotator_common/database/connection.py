@@ -158,6 +158,44 @@ def init_database() -> None:
     _create_collections()
 
 
+def _index_exists(collection, index_key):
+    """Check if an index with the given key pattern exists.
+    
+    Args:
+        collection: MongoDB collection object
+        index_key: Index key pattern (can be string for single field or list of tuples for compound)
+    
+    Returns:
+        bool: True if index exists, False otherwise
+    """
+    try:
+        # Normalize index key to list of tuples for comparison
+        if isinstance(index_key, str):
+            # Single field index
+            normalized_key = [(index_key, 1)]
+        else:
+            # Compound index - already a list of tuples
+            normalized_key = index_key if isinstance(index_key[0], tuple) else [(index_key, 1)]
+        
+        # Get all existing indexes
+        existing_indexes = list(collection.list_indexes())
+        
+        # Check if any index matches the key pattern
+        for idx in existing_indexes:
+            idx_key = idx.get("key", {})
+            # Convert index key dict to list of tuples for comparison
+            idx_key_list = [(k, v) for k, v in idx_key.items()]
+            
+            # Check if keys match (order matters for compound indexes)
+            if idx_key_list == normalized_key:
+                return True
+        
+        return False
+    except Exception:
+        # If we can't check, assume it doesn't exist and let create_index handle it
+        return False
+
+
 def _create_collections():
     """Create all required collections and indexes.
 
@@ -175,11 +213,14 @@ def _create_collections():
         # Project iterations collection
         project_iterations = db.project_iterations
         try:
-            project_iterations.create_index(
-                "project_iteration_id", unique=True, background=True
-            )
-            project_iterations.create_index("status", background=True)
-            project_iterations.create_index("created_at", background=True)
+            if not _index_exists(project_iterations, "project_iteration_id"):
+                project_iterations.create_index(
+                    "project_iteration_id", unique=True, background=True
+                )
+            if not _index_exists(project_iterations, "status"):
+                project_iterations.create_index("status", background=True)
+            if not _index_exists(project_iterations, "created_at"):
+                project_iterations.create_index("created_at", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for project_iterations collection: {e}"
@@ -189,12 +230,14 @@ def _create_collections():
         product_images = db.product_images
         try:
             # Compound unique index: same product_image_id can exist in different projects
-            product_images.create_index(
-                [("product_image_id", 1), ("project_iteration_id", 1)],
-                unique=True,
-                background=True,
-            )
-            product_images.create_index("project_iteration_id", background=True)
+            if not _index_exists(product_images, [("product_image_id", 1), ("project_iteration_id", 1)]):
+                product_images.create_index(
+                    [("product_image_id", 1), ("project_iteration_id", 1)],
+                    unique=True,
+                    background=True,
+                )
+            if not _index_exists(product_images, "project_iteration_id"):
+                product_images.create_index("project_iteration_id", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for product_images collection: {e}"
@@ -204,12 +247,14 @@ def _create_collections():
         dataset_images = db.dataset_images
         try:
             # Compound unique index: same dataset_image_id can exist in different projects
-            dataset_images.create_index(
-                [("dataset_image_id", 1), ("project_iteration_id", 1)],
-                unique=True,
-                background=True,
-            )
-            dataset_images.create_index("project_iteration_id", background=True)
+            if not _index_exists(dataset_images, [("dataset_image_id", 1), ("project_iteration_id", 1)]):
+                dataset_images.create_index(
+                    [("dataset_image_id", 1), ("project_iteration_id", 1)],
+                    unique=True,
+                    background=True,
+                )
+            if not _index_exists(dataset_images, "project_iteration_id"):
+                dataset_images.create_index("project_iteration_id", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for dataset_images collection: {e}"
@@ -219,18 +264,22 @@ def _create_collections():
         cutouts = db.cutouts
         try:
             # Compound unique index: same cutout_id can exist in different projects
-            cutouts.create_index(
-                [("cutout_id", 1), ("project_iteration_id", 1)],
-                unique=True,
-                background=True,
-            )
-            cutouts.create_index("project_iteration_id", background=True)
-            cutouts.create_index("dataset_image_id", background=True)
+            if not _index_exists(cutouts, [("cutout_id", 1), ("project_iteration_id", 1)]):
+                cutouts.create_index(
+                    [("cutout_id", 1), ("project_iteration_id", 1)],
+                    unique=True,
+                    background=True,
+                )
+            if not _index_exists(cutouts, "project_iteration_id"):
+                cutouts.create_index("project_iteration_id", background=True)
+            if not _index_exists(cutouts, "dataset_image_id"):
+                cutouts.create_index("dataset_image_id", background=True)
             # Compound index for efficient querying by dataset_image_id and project_iteration_id
-            cutouts.create_index(
-                [("dataset_image_id", 1), ("project_iteration_id", 1)],
-                background=True,
-            )
+            if not _index_exists(cutouts, [("dataset_image_id", 1), ("project_iteration_id", 1)]):
+                cutouts.create_index(
+                    [("dataset_image_id", 1), ("project_iteration_id", 1)],
+                    background=True,
+                )
         except Exception as e:
             logger.warning(f"Could not create indexes for cutouts collection: {e}")
 
@@ -240,20 +289,25 @@ def _create_collections():
             # Compound unique index: one analysis per cutout per project per analysis_type
             # This allows multiple analysis types (e.g., "initial", "detailed") per cutout
             # but prevents duplicate analyses of the same type for the same cutout
-            cutout_analysis.create_index(
-                [("cutout_id", 1), ("project_iteration_id", 1), ("analysis_type", 1)],
-                unique=True,
-                background=True,
-            )
+            if not _index_exists(cutout_analysis, [("cutout_id", 1), ("project_iteration_id", 1), ("analysis_type", 1)]):
+                cutout_analysis.create_index(
+                    [("cutout_id", 1), ("project_iteration_id", 1), ("analysis_type", 1)],
+                    unique=True,
+                    background=True,
+                )
             # Also keep index on cutout_analysis_id for lookups
-            cutout_analysis.create_index(
-                [("cutout_analysis_id", 1), ("project_iteration_id", 1)],
-                unique=True,
-                background=True,
-            )
-            cutout_analysis.create_index("cutout_id", background=True)
-            cutout_analysis.create_index("analysis_type", background=True)
-            cutout_analysis.create_index("project_iteration_id", background=True)
+            if not _index_exists(cutout_analysis, [("cutout_analysis_id", 1), ("project_iteration_id", 1)]):
+                cutout_analysis.create_index(
+                    [("cutout_analysis_id", 1), ("project_iteration_id", 1)],
+                    unique=True,
+                    background=True,
+                )
+            if not _index_exists(cutout_analysis, "cutout_id"):
+                cutout_analysis.create_index("cutout_id", background=True)
+            if not _index_exists(cutout_analysis, "analysis_type"):
+                cutout_analysis.create_index("analysis_type", background=True)
+            if not _index_exists(cutout_analysis, "project_iteration_id"):
+                cutout_analysis.create_index("project_iteration_id", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for cutout_analysis collection: {e}"
@@ -263,28 +317,36 @@ def _create_collections():
         annotations = db.annotations
         try:
             # Compound unique index: one annotation per cutout per project
-            annotations.create_index(
-                [("cutout_id", 1), ("project_iteration_id", 1)],
-                unique=True,
-                background=True,
-            )
-            annotations.create_index("project_iteration_id", background=True)
-            annotations.create_index("cutout_id", background=True)
-            annotations.create_index("product_image_id", background=True)
-            annotations.create_index("annotation_id", background=True)
+            if not _index_exists(annotations, [("cutout_id", 1), ("project_iteration_id", 1)]):
+                annotations.create_index(
+                    [("cutout_id", 1), ("project_iteration_id", 1)],
+                    unique=True,
+                    background=True,
+                )
+            if not _index_exists(annotations, "project_iteration_id"):
+                annotations.create_index("project_iteration_id", background=True)
+            if not _index_exists(annotations, "cutout_id"):
+                annotations.create_index("cutout_id", background=True)
+            if not _index_exists(annotations, "product_image_id"):
+                annotations.create_index("product_image_id", background=True)
+            if not _index_exists(annotations, "annotation_id"):
+                annotations.create_index("annotation_id", background=True)
             # Compound index for efficient querying by dataset_image_id and project_iteration_id
-            annotations.create_index(
-                [("dataset_image_id", 1), ("project_iteration_id", 1)],
-                background=True,
-            )
+            if not _index_exists(annotations, [("dataset_image_id", 1), ("project_iteration_id", 1)]):
+                annotations.create_index(
+                    [("dataset_image_id", 1), ("project_iteration_id", 1)],
+                    background=True,
+                )
         except Exception as e:
             logger.warning(f"Could not create indexes for annotations collection: {e}")
 
         # Analysis config collection
         analysis_config = db.analysis_config
         try:
-            analysis_config.create_index("config_id", unique=True, background=True)
-            analysis_config.create_index("active", background=True)
+            if not _index_exists(analysis_config, "config_id"):
+                analysis_config.create_index("config_id", unique=True, background=True)
+            if not _index_exists(analysis_config, "active"):
+                analysis_config.create_index("active", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for analysis_config collection: {e}"
@@ -294,157 +356,172 @@ def _create_collections():
         processed_events = db.processed_events
         try:
             # Index for image_downloaded events (product)
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("image_type", 1),
-                    ("product_image_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={
-                    "event_type": "image_downloaded",
-                    "image_type": "product",
-                },
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("image_type", 1), ("product_image_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("image_type", 1),
+                        ("product_image_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={
+                        "event_type": "image_downloaded",
+                        "image_type": "product",
+                    },
+                    background=True,
+                )
             # Index for image_downloaded events (dataset)
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("image_type", 1),
-                    ("dataset_image_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={
-                    "event_type": "image_downloaded",
-                    "image_type": "dataset",
-                },
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("image_type", 1), ("dataset_image_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("image_type", 1),
+                        ("dataset_image_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={
+                        "event_type": "image_downloaded",
+                        "image_type": "dataset",
+                    },
+                    background=True,
+                )
             # Index for cutouts_ready events
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("dataset_image_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "cutouts_ready"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("dataset_image_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("dataset_image_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "cutouts_ready"},
+                    background=True,
+                )
             # Index for image_analyzed events (product)
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("image_type", 1),
-                    ("product_image_id", 1),
-                    ("analysis_type", 1),
-                ],
-                unique=True,
-                partialFilterExpression={
-                    "event_type": "image_analyzed",
-                    "image_type": "product",
-                },
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("image_type", 1), ("product_image_id", 1), ("analysis_type", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("image_type", 1),
+                        ("product_image_id", 1),
+                        ("analysis_type", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={
+                        "event_type": "image_analyzed",
+                        "image_type": "product",
+                    },
+                    background=True,
+                )
             # Index for image_analyzed events (cutout)
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("image_type", 1),
-                    ("cutout_id", 1),
-                    ("analysis_type", 1),
-                ],
-                unique=True,
-                partialFilterExpression={
-                    "event_type": "image_analyzed",
-                    "image_type": "cutout",
-                },
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("image_type", 1), ("cutout_id", 1), ("analysis_type", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("image_type", 1),
+                        ("cutout_id", 1),
+                        ("analysis_type", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={
+                        "event_type": "image_analyzed",
+                        "image_type": "cutout",
+                    },
+                    background=True,
+                )
             # Index for annotation_created events
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("dataset_image_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "annotation_created"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("dataset_image_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("dataset_image_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "annotation_created"},
+                    background=True,
+                )
             # Index for start_project_iteration events
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "start_project_iteration"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "start_project_iteration"},
+                    background=True,
+                )
             # Index for annotate_dataset events
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("dataset_image_id", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "annotate_dataset"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("dataset_image_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("dataset_image_id", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "annotate_dataset"},
+                    background=True,
+                )
             # Index for dataset_image_analyzed events (cutout analysis)
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("cutout_id", 1),
-                    ("analysis_type", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "dataset_image_analyzed"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("cutout_id", 1), ("analysis_type", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("cutout_id", 1),
+                        ("analysis_type", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "dataset_image_analyzed"},
+                    background=True,
+                )
             # Index for product_image_analyzed events
-            processed_events.create_index(
-                [
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                    ("product_image_id", 1),
-                    ("analysis_type", 1),
-                ],
-                unique=True,
-                partialFilterExpression={"event_type": "product_image_analyzed"},
-                background=True,
-            )
+            if not _index_exists(processed_events, [("event_type", 1), ("project_iteration_id", 1), ("product_image_id", 1), ("analysis_type", 1)]):
+                processed_events.create_index(
+                    [
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                        ("product_image_id", 1),
+                        ("analysis_type", 1),
+                    ],
+                    unique=True,
+                    partialFilterExpression={"event_type": "product_image_analyzed"},
+                    background=True,
+                )
             # General indexes for querying
-            processed_events.create_index("event_type", background=True)
-            processed_events.create_index("project_iteration_id", background=True)
-            processed_events.create_index("processed_at", background=True)
+            if not _index_exists(processed_events, "event_type"):
+                processed_events.create_index("event_type", background=True)
+            if not _index_exists(processed_events, "project_iteration_id"):
+                processed_events.create_index("project_iteration_id", background=True)
+            if not _index_exists(processed_events, "processed_at"):
+                processed_events.create_index("processed_at", background=True)
             # Additional compound indexes for efficient querying
-            processed_events.create_index(
-                [
-                    ("analysis_type", 1),
-                    ("cutout_id", 1),
-                    ("event_type", 1),
-                    ("project_iteration_id", 1),
-                ],
-                background=True,
-            )
-            processed_events.create_index(
-                [
-                    ("analysis_type", 1),
-                    ("event_type", 1),
-                    ("product_image_id", 1),
-                    ("project_iteration_id", 1),
-                ],
-                background=True,
-            )
+            if not _index_exists(processed_events, [("analysis_type", 1), ("cutout_id", 1), ("event_type", 1), ("project_iteration_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("analysis_type", 1),
+                        ("cutout_id", 1),
+                        ("event_type", 1),
+                        ("project_iteration_id", 1),
+                    ],
+                    background=True,
+                )
+            if not _index_exists(processed_events, [("analysis_type", 1), ("event_type", 1), ("product_image_id", 1), ("project_iteration_id", 1)]):
+                processed_events.create_index(
+                    [
+                        ("analysis_type", 1),
+                        ("event_type", 1),
+                        ("product_image_id", 1),
+                        ("project_iteration_id", 1),
+                    ],
+                    background=True,
+                )
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for processed_events collection: {e}"
@@ -454,16 +531,21 @@ def _create_collections():
         modal_billing = db.modal_billing
         try:
             # Compound unique index: prevent duplicate entries for same date/function
-            modal_billing.create_index(
-                [("date", 1), ("function_name", 1), ("environment", 1)],
-                unique=True,
-                background=True,
-            )
+            if not _index_exists(modal_billing, [("date", 1), ("function_name", 1), ("environment", 1)]):
+                modal_billing.create_index(
+                    [("date", 1), ("function_name", 1), ("environment", 1)],
+                    unique=True,
+                    background=True,
+                )
             # Indexes for efficient querying
-            modal_billing.create_index("date", background=True)
-            modal_billing.create_index("environment", background=True)
-            modal_billing.create_index("function_name", background=True)
-            modal_billing.create_index("created_at", background=True)
+            if not _index_exists(modal_billing, "date"):
+                modal_billing.create_index("date", background=True)
+            if not _index_exists(modal_billing, "environment"):
+                modal_billing.create_index("environment", background=True)
+            if not _index_exists(modal_billing, "function_name"):
+                modal_billing.create_index("function_name", background=True)
+            if not _index_exists(modal_billing, "created_at"):
+                modal_billing.create_index("created_at", background=True)
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for modal_billing collection: {e}"
@@ -472,12 +554,14 @@ def _create_collections():
         # Detections collection - stores detection results from inference
         detections = db.detections
         try:
-            detections.create_index("project_iteration_id", background=True)
+            if not _index_exists(detections, "project_iteration_id"):
+                detections.create_index("project_iteration_id", background=True)
             # Compound index for efficient querying by dataset_images_id and project_iteration_id
-            detections.create_index(
-                [("dataset_images_id", 1), ("project_iteration_id", 1)],
-                background=True,
-            )
+            if not _index_exists(detections, [("dataset_images_id", 1), ("project_iteration_id", 1)]):
+                detections.create_index(
+                    [("dataset_images_id", 1), ("project_iteration_id", 1)],
+                    background=True,
+                )
         except Exception as e:
             logger.warning(
                 f"Could not create indexes for detections collection: {e}"
