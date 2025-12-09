@@ -66,9 +66,9 @@ def init_database() -> None:
     
     # Read preference configuration: controls which nodes handle read operations
     # Options: PRIMARY (default), PRIMARY_PREFERRED, SECONDARY, SECONDARY_PREFERRED, NEAREST
-    # SECONDARY_PREFERRED: Read from secondary if available, fallback to primary
-    # This distributes read load across replica set while maintaining availability
-    read_pref_mode = os.getenv("MONGODB_READ_PREFERENCE", "SECONDARY_PREFERRED").upper()
+    # PRIMARY: Always read from primary (strongest consistency, ensures read-after-write consistency)
+    # This is the default to prevent read-after-write consistency issues
+    read_pref_mode = os.getenv("MONGODB_READ_PREFERENCE", "PRIMARY").upper()
     read_preference_map = {
         "PRIMARY": ReadPreference.PRIMARY,
         "PRIMARY_PREFERRED": ReadPreference.PRIMARY_PREFERRED,
@@ -76,7 +76,7 @@ def init_database() -> None:
         "SECONDARY_PREFERRED": ReadPreference.SECONDARY_PREFERRED,
         "NEAREST": ReadPreference.NEAREST,
     }
-    read_preference = read_preference_map.get(read_pref_mode, ReadPreference.SECONDARY_PREFERRED)
+    read_preference = read_preference_map.get(read_pref_mode, ReadPreference.PRIMARY)
     
     if use_strong_consistency:
         import logging
@@ -90,8 +90,8 @@ def init_database() -> None:
         # Read Concern "majority": Ensures reads only return data that has been acknowledged by majority
         # This provides read-after-write consistency when combined with write concern majority
         # Read Preference: Configurable via MONGODB_READ_PREFERENCE env var
-        #   - SECONDARY_PREFERRED (default): Distributes reads to secondaries, falls back to primary
-        #   - PRIMARY: All reads go to primary (strongest consistency, no load distribution)
+        #   - PRIMARY (default): All reads go to primary (strongest consistency, ensures read-after-write consistency)
+        #   - SECONDARY_PREFERRED: Distributes reads to secondaries, falls back to primary (load distribution)
         # wtimeout: Maximum time to wait for write concern acknowledgment (5 seconds)
         write_concern = WriteConcern(w="majority", wtimeout=5000)
         read_concern = ReadConcern(level="majority")
@@ -105,7 +105,7 @@ def init_database() -> None:
     else:
         # Use default settings for standalone MongoDB or when not explicitly enabled
         # This ensures services can start even with standalone MongoDB instances
-        # Still apply read_preference to distribute reads across replica set
+        # Still apply read_preference (defaults to PRIMARY for consistency)
         _client = MongoClient(uri, read_preference=read_preference)
 
     # Determine database name with priority:
