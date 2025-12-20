@@ -6,12 +6,13 @@ Supports both Pub/Sub (production) and direct HTTP calls (local development).
 import json
 import os
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from google.cloud import pubsub_v1
 from google.api_core import exceptions
 import aiohttp
 from annotator_common.config import Config
 from annotator_common.logging import get_logger
+from pydantic import BaseModel
 
 logger = get_logger(__name__)
 
@@ -104,10 +105,16 @@ class PubSubPublisher:
         """Get full topic path."""
         return self._client.topic_path(self.project_id, topic_name)
 
+    def _normalize_message(self, message: Union[Dict[str, Any], BaseModel]) -> Dict[str, Any]:
+        """Convert a pydantic model to a JSON-serializable dict (or pass through dicts)."""
+        if isinstance(message, BaseModel):
+            return message.model_dump(mode="json")
+        return message
+
     async def _publish_via_http(
         self,
         topic_name: str,
-        message: Dict[str, Any],
+        message: Union[Dict[str, Any], BaseModel],
         max_retries: int = 3,
     ) -> str:
         """
@@ -148,12 +155,13 @@ class PubSubPublisher:
 
         # Make HTTP POST request with retry logic
         last_exception = None
+        normalized_message = self._normalize_message(message)
         async with aiohttp.ClientSession() as session:
             for attempt in range(max_retries + 1):
                 try:
                     async with session.post(
                         url,
-                        json=message,
+                        json=normalized_message,
                         timeout=aiohttp.ClientTimeout(total=30),
                     ) as response:
                         if response.status == 200:
@@ -179,12 +187,12 @@ class PubSubPublisher:
                     else:
                         logger.error(
                             f"Failed to publish message via HTTP to {url} after {max_retries + 1} attempts: {e}, "
-                            f"message: {message}"
+                            f"message: {normalized_message}"
                         )
                         raise
                 except Exception as e:
                     logger.error(
-                        f"Failed to publish message via HTTP to {url}: {e}, message: {message}"
+                        f"Failed to publish message via HTTP to {url}: {e}, message: {normalized_message}"
                     )
                     raise
 
@@ -197,7 +205,7 @@ class PubSubPublisher:
     async def publish_message(
         self,
         topic_name: str,
-        message: Dict[str, Any],
+        message: Union[Dict[str, Any], BaseModel],
         attributes: Optional[Dict[str, str]] = None,
         ordering_key: Optional[str] = None,
         max_retries: int = 3,
@@ -227,8 +235,10 @@ class PubSubPublisher:
         # Ensure topic exists before publishing (especially important for emulator)
         topic_path = await asyncio.to_thread(self.ensure_topic_exists, topic_name)
 
+        normalized_message = self._normalize_message(message)
+
         # Encode message as JSON bytes
-        message_bytes = json.dumps(message).encode("utf-8")
+        message_bytes = json.dumps(normalized_message).encode("utf-8")
 
         # Prepare message attributes
         message_attributes = attributes or {}

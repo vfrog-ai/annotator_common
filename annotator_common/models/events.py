@@ -3,7 +3,7 @@ Event models for RabbitMQ message handling.
 """
 
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -78,7 +78,8 @@ class ImageAnalyzedEvent(ProjectEvent):
     """Event for when an image analysis is complete."""
 
     analysis_type: str  # 'initial' or 'detailed'
-    analysis_result: Dict[str, Any]
+    # Analysis can be large; some services intentionally omit it and store it in MongoDB instead.
+    analysis_result: Optional[Dict[str, Any]] = None
     image_type: (
         str  # Deprecated - use ProductImageAnalyzedEvent or DatasetImageAnalyzedEvent
     )
@@ -89,14 +90,16 @@ class ProductImageAnalyzedEvent(ProjectEvent):
     """Event for when a product image analysis is complete."""
 
     analysis_type: str  # 'initial' or 'detailed'
-    analysis_result: Dict[str, Any]
+    # Analysis can be large; some services intentionally omit it and store it in MongoDB instead.
+    analysis_result: Optional[Dict[str, Any]] = None
 
 
 class DatasetImageAnalyzedEvent(ProjectEvent):
     """Event for when a dataset image (cutout) analysis is complete."""
 
     analysis_type: str  # 'initial' or 'detailed'
-    analysis_result: Dict[str, Any]
+    # Analysis can be large; some services intentionally omit it and store it in MongoDB instead.
+    analysis_result: Optional[Dict[str, Any]] = None
     cutout_id: str
 
 
@@ -114,3 +117,61 @@ class ErrorEvent(ProjectEvent):
     error_message: str
     service_name: str
     error_type: Optional[str] = None  # Exception class name
+
+
+# ============================================================================
+# Strongly-typed command/request events (published to worker topics)
+# ============================================================================
+
+
+class ImageInput(BaseModel):
+    """Minimal image input used by START_PROJECT_ITERATION."""
+
+    id: str
+    image_url: str
+    label: Optional[str] = None  # only for product images
+
+
+class StartProjectIterationEvent(ProjectEvent):
+    """Command: kick off a project iteration (published by API service)."""
+
+    callback_url: Optional[str] = None
+    product_image: ImageInput
+    dataset_images: List[ImageInput]
+
+
+class DownloadImageEvent(ProjectEvent):
+    """Command: download one image (published by project manager)."""
+
+    image_url: str
+    image_type: Literal["product", "dataset"]
+    label: Optional[str] = None  # only for product images
+
+
+class CutoutExtractionEvent(ProjectEvent):
+    """Command: run cutout extraction on a dataset image (published by project manager)."""
+
+    image_path: str
+    image_type: Literal["dataset"] = "dataset"
+
+
+class AnalyzeProductImageEvent(ProjectEvent):
+    """Command: run analysis on a product image (published by project manager)."""
+
+    image_path: str
+    analysis_type: str = "detailed"
+
+
+class AnalyzeDatasetImageEvent(ProjectEvent):
+    """Command: run analysis on a cutout/dataset image (published by project manager)."""
+
+    image_path: str
+    analysis_type: str = "detailed"
+    cutout_id: str
+
+
+class AnnotateDatasetEvent(ProjectEvent):
+    """Command: generate annotations for a dataset image (published by project manager)."""
+
+    # dataset_image_id/product_image_id are already on ProjectEvent; keep this class for typing/consistency.
+    pass
