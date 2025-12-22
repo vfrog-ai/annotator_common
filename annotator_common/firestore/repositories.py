@@ -20,6 +20,7 @@ from annotator_common.firestore.utils import (
     from_firestore_timestamp,
 )
 from google.cloud.firestore_v1 import Increment as firestore_Increment
+from google.cloud.firestore_v1 import ArrayUnion as firestore_ArrayUnion
 
 logger = logging.getLogger(__name__)
 
@@ -386,6 +387,36 @@ class CutoutRepository(BaseRepository):
             logger.debug(f"Updated cutout: {cutout_id}")
         except Exception as e:
             logger.error(f"Error updating cutout {cutout_id}: {e}")
+            raise
+
+    def add_to_set(
+        self,
+        project_iteration_id: str,
+        cutout_id: str,
+        field: str,
+        value: Any,
+        transaction: Optional[Transaction] = None,
+    ) -> None:
+        """
+        Add a value to an array field, avoiding duplicates (Firestore ArrayUnion).
+
+        This mirrors MongoDB's $addToSet semantics.
+        """
+        try:
+            doc_ref = (
+                self.client.collection("project_iterations")
+                .document(project_iteration_id)
+                .collection("cutouts")
+                .document(cutout_id)
+            )
+            updates = {field: firestore_ArrayUnion([value]), "updated_at": SERVER_TIMESTAMP}
+            if transaction:
+                transaction.update(doc_ref, updates)
+            else:
+                doc_ref.update(updates)
+            logger.debug(f"Added to set field '{field}' for cutout: {cutout_id}")
+        except Exception as e:
+            logger.error(f"Error adding to set for cutout {cutout_id} field {field}: {e}")
             raise
 
     def update_many(self, project_iteration_id: str, filter_dict: Dict[str, Any], updates: Dict[str, Any]) -> int:
