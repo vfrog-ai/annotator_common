@@ -5,7 +5,6 @@ Firestore utility functions for document conversion and timestamp handling.
 from datetime import datetime
 from typing import Any, Dict, Optional
 from google.cloud.firestore import SERVER_TIMESTAMP
-from google.cloud.firestore_v1 import Timestamp
 
 
 def to_firestore_timestamp(dt: Optional[datetime]) -> Any:
@@ -20,7 +19,8 @@ def from_firestore_timestamp(timestamp: Any) -> Optional[datetime]:
     """Convert Firestore Timestamp to Python datetime."""
     if timestamp is None:
         return None
-    if isinstance(timestamp, Timestamp):
+    # Check if it's a Firestore Timestamp (has to_datetime method)
+    if hasattr(timestamp, 'to_datetime'):
         return timestamp.to_datetime()
     if isinstance(timestamp, datetime):
         return timestamp
@@ -47,7 +47,8 @@ def doc_to_dict(doc: Any, include_id: bool = True) -> Dict[str, Any]:
 
     # Convert Firestore Timestamps to datetime
     for key, value in data.items():
-        if isinstance(value, Timestamp):
+        # Check if it's a Firestore Timestamp (has to_datetime method)
+        if hasattr(value, 'to_datetime'):
             data[key] = value.to_datetime()
         elif isinstance(value, datetime):
             # Already datetime, keep as is
