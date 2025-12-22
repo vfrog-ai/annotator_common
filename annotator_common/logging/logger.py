@@ -204,9 +204,12 @@ def setup_logger(
     for noisy_logger_name in (
         "elastic_transport",
         "elastic_transport.transport",
+        "elastic_transport.node_pool",
         "elasticsearch",
     ):
         noisy_logger = logging.getLogger(noisy_logger_name)
+        # Remove any handlers the library attached (these bypass root logger settings)
+        noisy_logger.handlers.clear()
         noisy_logger.setLevel(logging.WARNING)
         noisy_logger.propagate = False
 
