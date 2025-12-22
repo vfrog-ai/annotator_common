@@ -65,6 +65,9 @@ class Config:
     )
     FIRESTORE_EMULATOR_HOST: Optional[str] = os.getenv("FIRESTORE_EMULATOR_HOST")
 
+    # Image Storage Configuration
+    IMAGE_STORAGE_PATH: str = os.getenv("IMAGE_STORAGE_PATH", "/images")
+
     # Pub/Sub Topic Names (with environment prefix)
     # Format: {environment}_{base_name}
     # These replace the QUEUE_* constants for Pub/Sub migration
