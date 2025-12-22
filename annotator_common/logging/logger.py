@@ -78,8 +78,11 @@ class ElasticsearchHandler(logging.Handler):
 
             # Index the document
             self.es_client.index(index=index_name, document=doc)
-        except Exception:
+        except Exception as e:
             # Silently fail - don't break logging if Elasticsearch is unavailable
+            # But log to stderr for debugging
+            import sys
+            print(f"[ELASTICSEARCH_HANDLER] Error indexing log: {e}", file=sys.stderr)
             pass
 
 
@@ -96,55 +99,74 @@ def setup_logger(
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, level.upper()))
 
-    # Avoid duplicate handlers on root logger
-    if not root_logger.handlers:
-        # Create console handler
+    # Use custom formatter that outputs JSON for Cloud Logging when structured fields are present
+    # For regular logs, use standard format
+    formatter = CloudLoggingJSONFormatter(
+        fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Add console handler if not already present (uvicorn/FastAPI may have already added one)
+    has_console_handler = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
+    if not has_console_handler:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(getattr(logging, level.upper()))
-
-        # Use custom formatter that outputs JSON for Cloud Logging when structured fields are present
-        # For regular logs, use standard format
-        formatter = CloudLoggingJSONFormatter(
-            fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
         console_handler.setFormatter(formatter)
-
-        # Add console handler to root logger
         root_logger.addHandler(console_handler)
 
-        # Add Elasticsearch handler if available and not in Cloud Run
-        # In Cloud Run, stdout/stderr automatically go to Cloud Logging
-        # Skip Elasticsearch in local mode or if explicitly disabled
-        import os
+    # Add Elasticsearch handler if available and not in Cloud Run
+    # In Cloud Run, stdout/stderr automatically go to Cloud Logging
+    # Skip Elasticsearch in local mode or if explicitly disabled
+    # Check if Elasticsearch handler already exists to avoid duplicates
+    import os
 
-        skip_elasticsearch = (
-            os.getenv("K_SERVICE") is not None  # K_SERVICE is set by Cloud Run
-            or os.getenv("LOCAL_MODE", "false").lower() == "true"  # Skip in local mode
-            or os.getenv("DISABLE_ELASTICSEARCH", "false").lower()
-            == "true"  # Explicitly disabled
-        )
+    skip_elasticsearch = (
+        os.getenv("K_SERVICE") is not None  # K_SERVICE is set by Cloud Run
+        or os.getenv("DISABLE_ELASTICSEARCH", "false").lower() == "true"  # Explicitly disabled
+        # Allow Elasticsearch in LOCAL_MODE if ELASTICSEARCH_HOST is explicitly set (for local ELK stack)
+        or (os.getenv("LOCAL_MODE", "false").lower() == "true" 
+            and not os.getenv("ELASTICSEARCH_HOST"))  # Skip only if LOCAL_MODE and no ELASTICSEARCH_HOST
+    )
 
-        if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch:
-            try:
-                # Test connection before adding handler to avoid spam
-                es_client = Elasticsearch(
-                    [f"http://{Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}"],
-                    verify_certs=False,
-                    ssl_show_warn=False,
-                    request_timeout=2,
-                    max_retries=0,
-                )
-                # Quick health check - if this fails, don't add the handler
-                es_client.ping(request_timeout=1)
+    # Check if Elasticsearch handler already exists to avoid duplicates
+    has_elasticsearch_handler = any(
+        isinstance(h, ElasticsearchHandler) for h in root_logger.handlers
+    )
+
+    if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch and not has_elasticsearch_handler:
+        try:
+            import sys
+            print(f"[ELASTICSEARCH] Attempting to add handler to {Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}", file=sys.stderr)
+            # Test connection before adding handler to avoid spam
+            es_client = Elasticsearch(
+                [f"http://{Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}"],
+                verify_certs=False,
+                ssl_show_warn=False,
+                request_timeout=2,
+                max_retries=0,
+            )
+            # Quick health check - if this fails, don't add the handler
+            ping_result = es_client.ping(request_timeout=1)
+            print(f"[ELASTICSEARCH] Ping result: {ping_result}", file=sys.stderr)
+            if ping_result:
                 es_handler = ElasticsearchHandler(es_client)
                 es_handler.setLevel(getattr(logging, level.upper()))
                 es_handler.setFormatter(formatter)
                 root_logger.addHandler(es_handler)
-            except Exception:
-                # Silently fail if Elasticsearch is not available
-                # Don't log errors to avoid spam
-                pass
+                print(f"[ELASTICSEARCH] Handler added successfully", file=sys.stderr)
+            else:
+                print(f"[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr)
+        except Exception as e:
+            # Log the error for troubleshooting (use print to avoid circular logging)
+            # Don't break logging if Elasticsearch is not available
+            import sys
+            import traceback
+            print(f"[ELASTICSEARCH] Logging not available: {e}", file=sys.stderr)
+            print(f"[ELASTICSEARCH] Traceback: {traceback.format_exc()}", file=sys.stderr)
+            pass
+    else:
+        import sys
+        print(f"[ELASTICSEARCH] Skipping handler (AVAILABLE={ELASTICSEARCH_AVAILABLE}, skip={skip_elasticsearch}, has_handler={has_elasticsearch_handler})", file=sys.stderr)
 
     # Return a named logger that will inherit from root logger
     return logging.getLogger(name)
