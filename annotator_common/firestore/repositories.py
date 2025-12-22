@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from google.cloud.firestore_v1 import Transaction
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from annotator_common.firestore.connection import get_firestore_client
 from annotator_common.firestore.utils import (
@@ -326,7 +327,7 @@ class CutoutRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutouts")
             )
-            query = collection_ref.where("dataset_image_id", "==", dataset_image_id)
+            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id))
             docs = query.stream()
             return [doc_to_dict(doc) for doc in docs]
         except Exception as e:
@@ -341,7 +342,7 @@ class CutoutRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutouts")
             )
-            query = collection_ref.where("dataset_image_id", "==", dataset_image_id)
+            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id))
             return len(list(query.stream()))
         except Exception as e:
             logger.error(f"Error counting cutouts for dataset {dataset_image_id}: {e}")
@@ -399,12 +400,12 @@ class CutoutRepository(BaseRepository):
             for field, value in filter_dict.items():
                 if isinstance(value, dict) and "$in" in value:
                     # Handle MongoDB $in operator: {"field": {"$in": [val1, val2]}}
-                    query = query.where(field, "in", value["$in"])
+                    query = query.where(filter=FieldFilter(field, "in", value["$in"]))
                 elif isinstance(value, list):
                     # Handle direct list (Firestore "in" operator)
-                    query = query.where(field, "in", value)
+                    query = query.where(filter=FieldFilter(field, "in", value))
                 else:
-                    query = query.where(field, "==", value)
+                    query = query.where(filter=FieldFilter(field, "==", value))
 
             # Handle array operations ($addToSet, $pull)
             firestore_updates = {}
@@ -508,7 +509,7 @@ class CutoutAnalysisRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutout_analyses")
             )
-            query = collection_ref.where("dataset_image_id", "==", dataset_image_id).where("analysis_type", "==", analysis_type)
+            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id)).where(filter=FieldFilter("analysis_type", "==", analysis_type))
             return len(list(query.stream()))
         except Exception as e:
             logger.error(f"Error counting cutout analyses for dataset {dataset_image_id}: {e}")
