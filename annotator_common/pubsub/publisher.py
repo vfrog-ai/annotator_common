@@ -337,8 +337,9 @@ class PubSubPublisher:
         Returns:
             Full topic path
         """
-        if LOCAL_MODE:
-            # No-op in local mode
+        # In local mode without emulator we publish via HTTP and don't need real Pub/Sub topics.
+        # In emulator mode (LOCAL_MODE=true + PUBSUB_EMULATOR_HOST set), we MUST use real topic paths.
+        if self._client is None:
             return f"local://{topic_name}"
 
         topic_path = self._get_topic_path(topic_name)
