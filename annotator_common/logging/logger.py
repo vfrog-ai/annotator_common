@@ -36,7 +36,10 @@ class CloudLoggingJSONFormatter(logging.Formatter):
                     "severity": record.levelname,
                     "message": parsed.get("message", str(message)),
                     "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "service": record.name,
+                    # Use service/container name (not python module/logger name)
+                    "service": getattr(Config, "SERVICE_NAME", record.name),
+                    # Keep python logger/module name for debugging
+                    "logger_name": record.name,
                 }
                 # Add all structured fields from parsed JSON
                 for key, value in parsed.items():
@@ -105,8 +108,16 @@ class ElasticsearchHandler(logging.Handler):
                     doc["level"] = record.levelname
                 if "severity" not in doc:
                     doc["severity"] = record.levelname
-                if "service" not in doc or not doc.get("service"):
-                    doc["service"] = record.name
+                # Prefer container/service name for `service`
+                resolved_service_name = (
+                    doc.get("service_name")
+                    or getattr(Config, "SERVICE_NAME", None)
+                    or record.name
+                )
+                doc["service"] = resolved_service_name
+                # Keep python logger/module name for debugging
+                if "logger_name" not in doc or not doc.get("logger_name"):
+                    doc["logger_name"] = record.name
                 doc["hostname"] = self.hostname
             else:
                 # Format the record to get the formatted message
@@ -127,8 +138,14 @@ class ElasticsearchHandler(logging.Handler):
                                 doc["level"] = record.levelname
                             if "severity" not in doc:
                                 doc["severity"] = record.levelname
-                            if "service" not in doc or not doc.get("service"):
-                                doc["service"] = record.name
+                            resolved_service_name = (
+                                doc.get("service_name")
+                                or getattr(Config, "SERVICE_NAME", None)
+                                or record.name
+                            )
+                            doc["service"] = resolved_service_name
+                            if "logger_name" not in doc or not doc.get("logger_name"):
+                                doc["logger_name"] = record.name
                             doc["hostname"] = self.hostname
                         else:
                             # Fallback if parsed_json is not a dict
@@ -136,7 +153,8 @@ class ElasticsearchHandler(logging.Handler):
                                 "timestamp": datetime.utcnow().isoformat() + "Z",
                                 "level": record.levelname,
                                 "severity": record.levelname,
-                                "service": record.name,
+                                "service": getattr(Config, "SERVICE_NAME", record.name),
+                                "logger_name": record.name,
                                 "hostname": self.hostname,
                                 "message": formatted_message,
                             }
@@ -146,7 +164,8 @@ class ElasticsearchHandler(logging.Handler):
                             "timestamp": datetime.utcnow().isoformat() + "Z",
                             "level": record.levelname,
                             "severity": record.levelname,
-                            "service": record.name,
+                            "service": getattr(Config, "SERVICE_NAME", record.name),
+                            "logger_name": record.name,
                             "hostname": self.hostname,
                             "message": formatted_message,
                         }
@@ -156,7 +175,8 @@ class ElasticsearchHandler(logging.Handler):
                         "timestamp": datetime.utcnow().isoformat() + "Z",
                         "level": record.levelname,
                         "severity": record.levelname,
-                        "service": record.name,
+                        "service": getattr(Config, "SERVICE_NAME", record.name),
+                        "logger_name": record.name,
                         "hostname": self.hostname,
                         "message": formatted_message,
                     }
@@ -280,9 +300,7 @@ def setup_logger(
                 root_logger.addHandler(es_handler)
                 print("[ELASTICSEARCH] Handler added successfully", file=sys.stderr)
             else:
-                print(
-                    "[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr
-                )
+                print("[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr)
         except Exception as e:
             # Log the error for troubleshooting (use print to avoid circular logging)
             # Don't break logging if Elasticsearch is not available
@@ -374,7 +392,9 @@ class StructuredLogger:
 
             # Always prefer explicit values, otherwise fall back to Config defaults.
             # These are helpful for filtering in Kibana across services.
-            resolved_service_name = service_name or getattr(Config, "SERVICE_NAME", None)
+            resolved_service_name = service_name or getattr(
+                Config, "SERVICE_NAME", None
+            )
             if resolved_service_name:
                 structured_data["service_name"] = resolved_service_name
 
