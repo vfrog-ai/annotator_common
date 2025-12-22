@@ -30,7 +30,9 @@ setup(
         "google-cloud-storage>=2.14.0",
         "google-cloud-pubsub>=2.18.0",
         "google-cloud-firestore>=2.13.0",
-        "elasticsearch>=8.11.0",
+        # Keep Python client compatible with our Elasticsearch Docker image (8.x).
+        # elasticsearch-py 9.x sends compatible-with=9 headers which ES 8 rejects.
+        "elasticsearch>=8.11.0,<9",
         "aiohttp>=3.9.0",  # For direct HTTP calls in LOCAL_MODE
     ],
 )
