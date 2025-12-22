@@ -66,6 +66,11 @@ class ElasticsearchHandler(logging.Handler):
         # Prevent recursion - if we're already processing a log, skip this one
         if self._processing:
             return
+        
+        # Skip logs from Elasticsearch transport library to prevent recursion
+        # The elastic_transport library logs internally, which would cause infinite loops
+        if record.name.startswith('elastic_transport') or record.name.startswith('elasticsearch'):
+            return
 
         self._processing = True
         try:
