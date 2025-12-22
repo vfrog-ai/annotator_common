@@ -278,10 +278,10 @@ def setup_logger(
                 es_handler.setLevel(getattr(logging, level.upper()))
                 es_handler.setFormatter(formatter)
                 root_logger.addHandler(es_handler)
-                print(f"[ELASTICSEARCH] Handler added successfully", file=sys.stderr)
+                print("[ELASTICSEARCH] Handler added successfully", file=sys.stderr)
             else:
                 print(
-                    f"[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr
+                    "[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr
                 )
         except Exception as e:
             # Log the error for troubleshooting (use print to avoid circular logging)
@@ -331,6 +331,11 @@ class StructuredLogger:
         message: str,
         project_iteration_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
+        dataset_image_id: Optional[str] = None,
+        product_image_id: Optional[str] = None,
+        callback_url: Optional[str] = None,
+        project_id: Optional[str] = None,
+        service_name: Optional[str] = None,
         **kwargs,
     ) -> str:
         """
@@ -358,6 +363,29 @@ class StructuredLogger:
                 structured_data["project_iteration_id"] = project_iteration_id
             if correlation_id:
                 structured_data["correlation_id"] = correlation_id
+
+            # Common workflow fields (optional)
+            if dataset_image_id:
+                structured_data["dataset_image_id"] = dataset_image_id
+            if product_image_id:
+                structured_data["product_image_id"] = product_image_id
+            if callback_url:
+                structured_data["callback_url"] = callback_url
+
+            # Always prefer explicit values, otherwise fall back to Config defaults.
+            # These are helpful for filtering in Kibana across services.
+            resolved_service_name = service_name or getattr(Config, "SERVICE_NAME", None)
+            if resolved_service_name:
+                structured_data["service_name"] = resolved_service_name
+
+            resolved_project_id = (
+                project_id
+                or getattr(Config, "GOOGLE_CLOUD_PROJECT", None)
+                or getattr(Config, "GCP_PROJECT_ID", None)
+            )
+            if resolved_project_id:
+                structured_data["project_id"] = resolved_project_id
+
             structured_data.update(kwargs)
             # Output JSON that Cloud Logging can parse
             # The CloudLoggingJSONFormatter will detect this and output proper JSON
@@ -451,7 +479,16 @@ def get_structured_logger(name: str) -> StructuredLogger:
 
 
 def log_info(
-    message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs
+    message: str,
+    correlation_id: str = "",
+    logger_name: Optional[str] = None,
+    project_iteration_id: Optional[str] = None,
+    dataset_image_id: Optional[str] = None,
+    product_image_id: Optional[str] = None,
+    callback_url: Optional[str] = None,
+    project_id: Optional[str] = None,
+    service_name: Optional[str] = None,
+    **kwargs,
 ):
     """
     Log an info message with correlation_id (always required, can be empty string).
@@ -478,11 +515,34 @@ def log_info(
 
     # Always use structured logger with correlation_id
     structured_logger = get_structured_logger(logger_name)
+    # Preserve any explicit kwargs values (don't override if caller passed them)
+    if project_iteration_id is not None:
+        kwargs.setdefault("project_iteration_id", project_iteration_id)
+    if dataset_image_id is not None:
+        kwargs.setdefault("dataset_image_id", dataset_image_id)
+    if product_image_id is not None:
+        kwargs.setdefault("product_image_id", product_image_id)
+    if callback_url is not None:
+        kwargs.setdefault("callback_url", callback_url)
+    if project_id is not None:
+        kwargs.setdefault("project_id", project_id)
+    if service_name is not None:
+        kwargs.setdefault("service_name", service_name)
+
     structured_logger.info(message, correlation_id=correlation_id, **kwargs)
 
 
 def log_warning(
-    message: str, correlation_id: str = "", logger_name: Optional[str] = None, **kwargs
+    message: str,
+    correlation_id: str = "",
+    logger_name: Optional[str] = None,
+    project_iteration_id: Optional[str] = None,
+    dataset_image_id: Optional[str] = None,
+    product_image_id: Optional[str] = None,
+    callback_url: Optional[str] = None,
+    project_id: Optional[str] = None,
+    service_name: Optional[str] = None,
+    **kwargs,
 ):
     """
     Log a warning message with correlation_id (always required, can be empty string).
@@ -509,4 +569,18 @@ def log_warning(
 
     # Always use structured logger with correlation_id
     structured_logger = get_structured_logger(logger_name)
+    # Preserve any explicit kwargs values (don't override if caller passed them)
+    if project_iteration_id is not None:
+        kwargs.setdefault("project_iteration_id", project_iteration_id)
+    if dataset_image_id is not None:
+        kwargs.setdefault("dataset_image_id", dataset_image_id)
+    if product_image_id is not None:
+        kwargs.setdefault("product_image_id", product_image_id)
+    if callback_url is not None:
+        kwargs.setdefault("callback_url", callback_url)
+    if project_id is not None:
+        kwargs.setdefault("project_id", project_id)
+    if service_name is not None:
+        kwargs.setdefault("service_name", service_name)
+
     structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
