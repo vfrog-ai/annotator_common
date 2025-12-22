@@ -67,14 +67,55 @@ class ElasticsearchHandler(logging.Handler):
             date_str = datetime.utcnow().strftime("%Y.%m.%d")
             index_name = self.index_pattern.format(date=date_str)
 
-            # Create document
-            doc = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "level": record.levelname,
-                "service": record.name,
-                "hostname": self.hostname,
-                "message": self.format(record),
-            }
+            # Format the record to get the message
+            formatted_message = self.format(record)
+            
+            # Try to parse JSON message and extract structured fields
+            # The CloudLoggingJSONFormatter outputs JSON when structured fields are present
+            if formatted_message.strip().startswith("{"):
+                try:
+                    parsed_json = json.loads(formatted_message)
+                    # If the formatted message is JSON, use it as the base document
+                    if isinstance(parsed_json, dict):
+                        # Start with parsed JSON fields (these are the structured fields)
+                        doc = dict(parsed_json)
+                        # Ensure we have essential fields
+                        if "timestamp" not in doc:
+                            doc["timestamp"] = datetime.utcnow().isoformat()
+                        if "level" not in doc:
+                            doc["level"] = record.levelname
+                        if "severity" not in doc:
+                            doc["severity"] = record.levelname
+                        if "service" not in doc:
+                            doc["service"] = record.name
+                        doc["hostname"] = self.hostname
+                    else:
+                        # Fallback if parsed_json is not a dict
+                        doc = {
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "level": record.levelname,
+                            "service": record.name,
+                            "hostname": self.hostname,
+                            "message": formatted_message,
+                        }
+                except (json.JSONDecodeError, ValueError):
+                    # If parsing fails, use standard format
+                    doc = {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "level": record.levelname,
+                        "service": record.name,
+                        "hostname": self.hostname,
+                        "message": formatted_message,
+                    }
+            else:
+                # Standard format for non-JSON messages
+                doc = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "level": record.levelname,
+                    "service": record.name,
+                    "hostname": self.hostname,
+                    "message": formatted_message,
+                }
 
             # Index the document
             self.es_client.index(index=index_name, document=doc)
