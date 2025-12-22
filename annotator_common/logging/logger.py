@@ -135,7 +135,6 @@ def setup_logger(
 
     if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch and not has_elasticsearch_handler:
         try:
-            import sys
             print(f"[ELASTICSEARCH] Attempting to add handler to {Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}", file=sys.stderr)
             # Test connection before adding handler to avoid spam
             es_client = Elasticsearch(
@@ -159,13 +158,11 @@ def setup_logger(
         except Exception as e:
             # Log the error for troubleshooting (use print to avoid circular logging)
             # Don't break logging if Elasticsearch is not available
-            import sys
             import traceback
             print(f"[ELASTICSEARCH] Logging not available: {e}", file=sys.stderr)
             print(f"[ELASTICSEARCH] Traceback: {traceback.format_exc()}", file=sys.stderr)
             pass
     else:
-        import sys
         print(f"[ELASTICSEARCH] Skipping handler (AVAILABLE={ELASTICSEARCH_AVAILABLE}, skip={skip_elasticsearch}, has_handler={has_elasticsearch_handler})", file=sys.stderr)
 
     # Return a named logger that will inherit from root logger
