@@ -27,12 +27,6 @@ class Config:
     ELASTICSEARCH_HOST: str = os.getenv("ELASTICSEARCH_HOST", "elasticsearch")
     ELASTICSEARCH_PORT: int = int(os.getenv("ELASTICSEARCH_PORT", "9200"))
 
-    # Image Storage Configuration
-    IMAGE_STORAGE_PATH: str = os.getenv("IMAGE_STORAGE_PATH", "/images")
-    ANNOTATION_STORAGE_PATH: str = os.getenv(
-        "ANNOTATION_STORAGE_PATH", "/images/annotations"
-    )
-
     # Environment Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "dev")  # dev, staging, production
 
@@ -64,6 +58,12 @@ class Config:
     # Google Cloud Pub/Sub Configuration
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
     PUBSUB_PUSH_ENDPOINT: str = os.getenv("PUBSUB_PUSH_ENDPOINT", "/pubsub/push")
+
+    # Firestore Configuration
+    GOOGLE_CLOUD_PROJECT: str = os.getenv(
+        "GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", "local-dev")
+    )
+    FIRESTORE_EMULATOR_HOST: Optional[str] = os.getenv("FIRESTORE_EMULATOR_HOST")
 
     # Pub/Sub Topic Names (with environment prefix)
     # Format: {environment}_{base_name}

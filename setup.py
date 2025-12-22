@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="annotator-common",
-    version="0.2.34",
+    version="0.3.0",
     author="vfrog",
     description="Common utilities and shared code for annotator services",
     long_description=long_description,
@@ -29,6 +29,7 @@ setup(
         "pydantic>=2.5.0",
         "google-cloud-storage>=2.14.0",
         "google-cloud-pubsub>=2.18.0",
+        "google-cloud-firestore>=2.13.0",
         "elasticsearch>=8.11.0",
         "aiohttp>=3.9.0",  # For direct HTTP calls in LOCAL_MODE
     ],
