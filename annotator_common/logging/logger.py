@@ -67,55 +67,82 @@ class ElasticsearchHandler(logging.Handler):
             date_str = datetime.utcnow().strftime("%Y.%m.%d")
             index_name = self.index_pattern.format(date=date_str)
 
-            # Format the record to get the message
-            formatted_message = self.format(record)
-            
-            # Try to parse JSON message and extract structured fields
-            # The CloudLoggingJSONFormatter outputs JSON when structured fields are present
-            if formatted_message.strip().startswith("{"):
+            # Get the raw message from the record first (before formatting)
+            # Check if the record message itself is JSON
+            raw_message = record.getMessage()
+
+            # Try to parse JSON from the raw message first
+            parsed_json = None
+            if raw_message.strip().startswith("{"):
                 try:
-                    parsed_json = json.loads(formatted_message)
-                    # If the formatted message is JSON, use it as the base document
-                    if isinstance(parsed_json, dict):
-                        # Start with parsed JSON fields (these are the structured fields)
-                        doc = dict(parsed_json)
-                        # Ensure we have essential fields
-                        if "timestamp" not in doc:
-                            doc["timestamp"] = datetime.utcnow().isoformat()
-                        if "level" not in doc:
-                            doc["level"] = record.levelname
-                        if "severity" not in doc:
-                            doc["severity"] = record.levelname
-                        if "service" not in doc:
-                            doc["service"] = record.name
-                        doc["hostname"] = self.hostname
-                    else:
-                        # Fallback if parsed_json is not a dict
+                    parsed_json = json.loads(raw_message)
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    pass
+
+            # If we have parsed JSON, use it as the base document
+            if parsed_json and isinstance(parsed_json, dict):
+                # Start with parsed JSON fields (these are the structured fields like correlation_id, project_iteration_id)
+                doc = dict(parsed_json)
+                # Ensure we have essential fields (don't override if they exist)
+                if "timestamp" not in doc or not doc.get("timestamp"):
+                    doc["timestamp"] = datetime.utcnow().isoformat() + "Z"
+                if "level" not in doc:
+                    doc["level"] = record.levelname
+                if "severity" not in doc:
+                    doc["severity"] = record.levelname
+                if "service" not in doc or not doc.get("service"):
+                    doc["service"] = record.name
+                doc["hostname"] = self.hostname
+            else:
+                # Format the record to get the formatted message
+                formatted_message = self.format(record)
+                # Try to parse the formatted message (CloudLoggingJSONFormatter outputs JSON)
+                if formatted_message.strip().startswith("{"):
+                    try:
+                        parsed_json = json.loads(formatted_message)
+                        if isinstance(parsed_json, dict):
+                            # Use parsed JSON as the document
+                            doc = dict(parsed_json)
+                            # Ensure we have essential fields
+                            if "timestamp" not in doc or not doc.get("timestamp"):
+                                doc["timestamp"] = datetime.utcnow().isoformat() + "Z"
+                            if "level" not in doc:
+                                doc["level"] = record.levelname
+                            if "severity" not in doc:
+                                doc["severity"] = record.levelname
+                            if "service" not in doc or not doc.get("service"):
+                                doc["service"] = record.name
+                            doc["hostname"] = self.hostname
+                        else:
+                            # Fallback if parsed_json is not a dict
+                            doc = {
+                                "timestamp": datetime.utcnow().isoformat() + "Z",
+                                "level": record.levelname,
+                                "severity": record.levelname,
+                                "service": record.name,
+                                "hostname": self.hostname,
+                                "message": formatted_message,
+                            }
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        # If parsing fails, use standard format
                         doc = {
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
                             "level": record.levelname,
+                            "severity": record.levelname,
                             "service": record.name,
                             "hostname": self.hostname,
                             "message": formatted_message,
                         }
-                except (json.JSONDecodeError, ValueError):
-                    # If parsing fails, use standard format
+                else:
+                    # Standard format for non-JSON messages
                     doc = {
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
                         "level": record.levelname,
+                        "severity": record.levelname,
                         "service": record.name,
                         "hostname": self.hostname,
                         "message": formatted_message,
                     }
-            else:
-                # Standard format for non-JSON messages
-                doc = {
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "level": record.levelname,
-                    "service": record.name,
-                    "hostname": self.hostname,
-                    "message": formatted_message,
-                }
 
             # Index the document
             self.es_client.index(index=index_name, document=doc)
@@ -123,6 +150,7 @@ class ElasticsearchHandler(logging.Handler):
             # Silently fail - don't break logging if Elasticsearch is unavailable
             # But log to stderr for debugging
             import sys
+
             print(f"[ELASTICSEARCH_HANDLER] Error indexing log: {e}", file=sys.stderr)
             pass
 
@@ -148,7 +176,9 @@ def setup_logger(
     )
 
     # Add console handler if not already present (uvicorn/FastAPI may have already added one)
-    has_console_handler = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
+    has_console_handler = any(
+        isinstance(h, logging.StreamHandler) for h in root_logger.handlers
+    )
     if not has_console_handler:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(getattr(logging, level.upper()))
@@ -163,10 +193,13 @@ def setup_logger(
 
     skip_elasticsearch = (
         os.getenv("K_SERVICE") is not None  # K_SERVICE is set by Cloud Run
-        or os.getenv("DISABLE_ELASTICSEARCH", "false").lower() == "true"  # Explicitly disabled
+        or os.getenv("DISABLE_ELASTICSEARCH", "false").lower()
+        == "true"  # Explicitly disabled
         # Allow Elasticsearch in LOCAL_MODE if ELASTICSEARCH_HOST is explicitly set (for local ELK stack)
-        or (os.getenv("LOCAL_MODE", "false").lower() == "true" 
-            and not os.getenv("ELASTICSEARCH_HOST"))  # Skip only if LOCAL_MODE and no ELASTICSEARCH_HOST
+        or (
+            os.getenv("LOCAL_MODE", "false").lower() == "true"
+            and not os.getenv("ELASTICSEARCH_HOST")
+        )  # Skip only if LOCAL_MODE and no ELASTICSEARCH_HOST
     )
 
     # Check if Elasticsearch handler already exists to avoid duplicates
@@ -174,9 +207,16 @@ def setup_logger(
         isinstance(h, ElasticsearchHandler) for h in root_logger.handlers
     )
 
-    if ELASTICSEARCH_AVAILABLE and not skip_elasticsearch and not has_elasticsearch_handler:
+    if (
+        ELASTICSEARCH_AVAILABLE
+        and not skip_elasticsearch
+        and not has_elasticsearch_handler
+    ):
         try:
-            print(f"[ELASTICSEARCH] Attempting to add handler to {Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}", file=sys.stderr)
+            print(
+                f"[ELASTICSEARCH] Attempting to add handler to {Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}",
+                file=sys.stderr,
+            )
             # Test connection before adding handler to avoid spam
             es_client = Elasticsearch(
                 [f"http://{Config.ELASTICSEARCH_HOST}:{Config.ELASTICSEARCH_PORT}"],
@@ -195,16 +235,24 @@ def setup_logger(
                 root_logger.addHandler(es_handler)
                 print(f"[ELASTICSEARCH] Handler added successfully", file=sys.stderr)
             else:
-                print(f"[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr)
+                print(
+                    f"[ELASTICSEARCH] Ping failed, handler not added", file=sys.stderr
+                )
         except Exception as e:
             # Log the error for troubleshooting (use print to avoid circular logging)
             # Don't break logging if Elasticsearch is not available
             import traceback
+
             print(f"[ELASTICSEARCH] Logging not available: {e}", file=sys.stderr)
-            print(f"[ELASTICSEARCH] Traceback: {traceback.format_exc()}", file=sys.stderr)
+            print(
+                f"[ELASTICSEARCH] Traceback: {traceback.format_exc()}", file=sys.stderr
+            )
             pass
     else:
-        print(f"[ELASTICSEARCH] Skipping handler (AVAILABLE={ELASTICSEARCH_AVAILABLE}, skip={skip_elasticsearch}, has_handler={has_elasticsearch_handler})", file=sys.stderr)
+        print(
+            f"[ELASTICSEARCH] Skipping handler (AVAILABLE={ELASTICSEARCH_AVAILABLE}, skip={skip_elasticsearch}, has_handler={has_elasticsearch_handler})",
+            file=sys.stderr,
+        )
 
     # Return a named logger that will inherit from root logger
     return logging.getLogger(name)

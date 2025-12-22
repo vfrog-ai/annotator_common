@@ -17,7 +17,9 @@ from pydantic import BaseModel
 logger = get_logger(__name__)
 
 # Local mode flag - when True, make direct HTTP calls instead of using Pub/Sub
+# However, if PUBSUB_EMULATOR_HOST is set, use the emulator (real Pub/Sub client)
 LOCAL_MODE = os.getenv("LOCAL_MODE", "false").lower() == "true"
+PUBSUB_EMULATOR_HOST = os.getenv("PUBSUB_EMULATOR_HOST")
 
 # Service URL mappings for local mode (topic_name -> service_url)
 LOCAL_SERVICE_URLS = {
@@ -43,18 +45,27 @@ _publisher_client: Optional[pubsub_v1.PublisherClient] = None
 def get_publisher_client() -> Optional[pubsub_v1.PublisherClient]:
     """Get or create the singleton Pub/Sub publisher client.
 
-    Returns None if LOCAL_MODE=true (direct HTTP calls are used instead).
+    Returns None if LOCAL_MODE=true AND PUBSUB_EMULATOR_HOST is not set
+    (direct HTTP calls are used instead).
+
+    Returns a Pub/Sub client if:
+    - LOCAL_MODE=false (production mode)
+    - LOCAL_MODE=true AND PUBSUB_EMULATOR_HOST is set (emulator available)
     """
     global _publisher_client
 
-    # In local mode, don't create a Pub/Sub client
-    if LOCAL_MODE:
-        logger.debug("LOCAL_MODE enabled - skipping Pub/Sub client creation")
+    # In local mode without emulator, use HTTP calls instead
+    if LOCAL_MODE and not PUBSUB_EMULATOR_HOST:
+        logger.debug("LOCAL_MODE enabled without Pub/Sub emulator - skipping Pub/Sub client creation")
         return None
 
+    # Create client for production or emulator mode
     if _publisher_client is None:
         _publisher_client = pubsub_v1.PublisherClient()
-        logger.info("Created Pub/Sub publisher client")
+        if PUBSUB_EMULATOR_HOST:
+            logger.info(f"Created Pub/Sub publisher client (emulator mode: {PUBSUB_EMULATOR_HOST})")
+        else:
+            logger.info("Created Pub/Sub publisher client (production mode)")
     return _publisher_client
 
 
@@ -73,8 +84,8 @@ class PubSubPublisher:
         # Cache for verified topics to avoid repeated existence checks (rate limit optimization)
         self._verified_topics: set = set()
         
-        # In local mode, skip GCP_PROJECT_ID validation
-        if LOCAL_MODE:
+        # In local mode without emulator, use HTTP calls instead of Pub/Sub
+        if LOCAL_MODE and not PUBSUB_EMULATOR_HOST:
             self.project_id = project_id or Config.GCP_PROJECT_ID or "local-project"
             self._client = None
             logger.info("Initialized PubSubPublisher in LOCAL_MODE (direct HTTP calls)")
@@ -212,23 +223,28 @@ class PubSubPublisher:
     ) -> str:
         """
         Publish a message to a Pub/Sub topic with retry logic for rate limiting.
-        In LOCAL_MODE, makes direct HTTP calls instead of using Pub/Sub.
+        
+        Behavior:
+        - In LOCAL_MODE without PUBSUB_EMULATOR_HOST: makes direct HTTP calls
+        - In LOCAL_MODE with PUBSUB_EMULATOR_HOST: uses Pub/Sub emulator (real client)
+        - In production (LOCAL_MODE=false): uses real Pub/Sub
 
         Args:
             topic_name: Name of the topic (with environment prefix, e.g., "staging_download_image")
             message: Message payload as dictionary
-            attributes: Optional message attributes (ignored in local mode)
-            ordering_key: Optional ordering key for ordered delivery (ignored in local mode)
+            attributes: Optional message attributes (ignored in HTTP mode)
+            ordering_key: Optional ordering key for ordered delivery (ignored in HTTP mode)
             max_retries: Maximum number of retry attempts for rate limit errors (default: 3)
 
         Returns:
-            Message ID from Pub/Sub (or mock ID in local mode)
+            Message ID from Pub/Sub (or mock ID in HTTP mode)
 
         Raises:
             Exception: If publishing fails after all retries
         """
-        # In local mode, make direct HTTP calls
-        if LOCAL_MODE:
+        # In local mode without emulator, make direct HTTP calls
+        # If emulator is available, use real Pub/Sub client
+        if LOCAL_MODE and not PUBSUB_EMULATOR_HOST:
             return await self._publish_via_http(topic_name, message, max_retries)
 
         # Production mode: use Pub/Sub
