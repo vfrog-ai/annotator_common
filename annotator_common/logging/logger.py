@@ -66,10 +66,12 @@ class ElasticsearchHandler(logging.Handler):
         # Prevent recursion - if we're already processing a log, skip this one
         if self._processing:
             return
-        
+
         # Skip logs from Elasticsearch transport library to prevent recursion
         # The elastic_transport library logs internally, which would cause infinite loops
-        if record.name.startswith('elastic_transport') or record.name.startswith('elasticsearch'):
+        if record.name.startswith("elastic_transport") or record.name.startswith(
+            "elasticsearch"
+        ):
             return
 
         self._processing = True
@@ -196,6 +198,17 @@ def setup_logger(
     # Configure root logger to ensure all loggers inherit handlers
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, level.upper()))
+
+    # Silence Elasticsearch client internal logs (they are very noisy and can flood stdout)
+    # We still index our application logs via ElasticsearchHandler; these are transport debug logs.
+    for noisy_logger_name in (
+        "elastic_transport",
+        "elastic_transport.transport",
+        "elasticsearch",
+    ):
+        noisy_logger = logging.getLogger(noisy_logger_name)
+        noisy_logger.setLevel(logging.WARNING)
+        noisy_logger.propagate = False
 
     # Use custom formatter that outputs JSON for Cloud Logging when structured fields are present
     # For regular logs, use standard format
