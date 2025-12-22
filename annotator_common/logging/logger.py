@@ -59,9 +59,15 @@ class ElasticsearchHandler(logging.Handler):
         self.es_client = es_client
         self.index_pattern = index_pattern
         self.hostname = socket.gethostname()
+        self._processing = False  # Flag to prevent recursion
 
     def emit(self, record):
         """Emit a log record to Elasticsearch."""
+        # Prevent recursion - if we're already processing a log, skip this one
+        if self._processing:
+            return
+
+        self._processing = True
         try:
             # Create index name with date
             date_str = datetime.utcnow().strftime("%Y.%m.%d")
@@ -152,11 +158,25 @@ class ElasticsearchHandler(logging.Handler):
             self.es_client.index(index=index_name, document=doc)
         except Exception as e:
             # Silently fail - don't break logging if Elasticsearch is unavailable
-            # But log to stderr for debugging
+            # But log to stderr for debugging (using print, not logging, to avoid recursion)
             import sys
 
-            print(f"[ELASTICSEARCH_HANDLER] Error indexing log: {e}", file=sys.stderr)
+            # Only print error details, not full traceback, to avoid recursion
+            error_msg = str(e)
+            if "recursion" in error_msg.lower():
+                print(
+                    "[ELASTICSEARCH_HANDLER] Recursion detected, skipping log entry",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"[ELASTICSEARCH_HANDLER] Error indexing log: {error_msg}",
+                    file=sys.stderr,
+                )
             pass
+        finally:
+            # Always reset the flag, even if an exception occurred
+            self._processing = False
 
 
 def setup_logger(
