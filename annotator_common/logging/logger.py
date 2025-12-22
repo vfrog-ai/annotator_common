@@ -79,9 +79,11 @@ class ElasticsearchHandler(logging.Handler):
                 except (json.JSONDecodeError, ValueError, TypeError):
                     pass
 
-            # If we have parsed JSON, use it as the base document
+            # If we have parsed JSON from raw message, use it as the base document
+            # This preserves ALL structured fields (correlation_id, project_iteration_id, etc.)
             if parsed_json and isinstance(parsed_json, dict):
-                # Start with parsed JSON fields (these are the structured fields like correlation_id, project_iteration_id)
+                # Start with ALL parsed JSON fields (these are ALL the structured fields)
+                # Using dict(parsed_json) ensures ALL fields are included as top-level fields
                 doc = dict(parsed_json)
                 # Ensure we have essential fields (don't override if they exist)
                 if "timestamp" not in doc or not doc.get("timestamp"):
@@ -95,15 +97,17 @@ class ElasticsearchHandler(logging.Handler):
                 doc["hostname"] = self.hostname
             else:
                 # Format the record to get the formatted message
+                # CloudLoggingJSONFormatter processes JSON and adds severity, timestamp, service
                 formatted_message = self.format(record)
                 # Try to parse the formatted message (CloudLoggingJSONFormatter outputs JSON)
                 if formatted_message.strip().startswith("{"):
                     try:
                         parsed_json = json.loads(formatted_message)
                         if isinstance(parsed_json, dict):
-                            # Use parsed JSON as the document
+                            # Use ALL parsed JSON fields as the document
+                            # This includes all structured fields from CloudLoggingJSONFormatter
                             doc = dict(parsed_json)
-                            # Ensure we have essential fields
+                            # Ensure we have essential fields (don't override if they exist)
                             if "timestamp" not in doc or not doc.get("timestamp"):
                                 doc["timestamp"] = datetime.utcnow().isoformat() + "Z"
                             if "level" not in doc:
@@ -144,7 +148,7 @@ class ElasticsearchHandler(logging.Handler):
                         "message": formatted_message,
                     }
 
-            # Index the document
+            # Index the document - ALL fields in doc will be stored as top-level fields in Elasticsearch
             self.es_client.index(index=index_name, document=doc)
         except Exception as e:
             # Silently fail - don't break logging if Elasticsearch is unavailable
