@@ -69,9 +69,7 @@ class PubSubPublisher:
 
         # Create client (will use emulator if PUBSUB_EMULATOR_HOST is set)
         self._client = get_publisher_client()
-        log_info(
-            f"Initialized PubSubPublisher for project: {self.project_id}"
-        )
+        log_info(f"Initialized PubSubPublisher for project: {self.project_id}")
 
     def _get_topic_path(self, topic_name: str) -> str:
         """Get full topic path."""
@@ -140,11 +138,6 @@ class PubSubPublisher:
 
                 # Wait for publish to complete (run in thread pool for async compatibility)
                 message_id = await asyncio.to_thread(future.result, timeout=30)
-
-                log_info(
-                    f"Published message to topic {topic_name}: message_id={message_id}, "
-                    f"attributes={message_attributes}, ordering_key={ordering_key}"
-                )
 
                 return message_id
 
