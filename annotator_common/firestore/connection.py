@@ -71,4 +71,4 @@ def close_firestore() -> None:
     # Firestore client doesn't have an explicit close method,
     # but we can reset the reference
     _client = None
-    log_info("Firestore client reference reset", correlation_id="")
+    log_info("Firestore client reference reset")
