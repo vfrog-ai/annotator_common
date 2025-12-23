@@ -34,8 +34,7 @@ def get_publisher_client() -> pubsub_v1.PublisherClient:
         _publisher_client = pubsub_v1.PublisherClient()
         if PUBSUB_EMULATOR_HOST:
             log_info(
-                f"Created Pub/Sub publisher client (emulator mode: {PUBSUB_EMULATOR_HOST})",
-                correlation_id="",
+                f"Created Pub/Sub publisher client (emulator mode: {PUBSUB_EMULATOR_HOST})"
             )
         else:
             log_info("Created Pub/Sub publisher client (production mode)")
@@ -71,8 +70,7 @@ class PubSubPublisher:
         # Create client (will use emulator if PUBSUB_EMULATOR_HOST is set)
         self._client = get_publisher_client()
         log_info(
-            f"Initialized PubSubPublisher for project: {self.project_id}",
-            correlation_id="",
+            f"Initialized PubSubPublisher for project: {self.project_id}"
         )
 
     def _get_topic_path(self, topic_name: str) -> str:
@@ -145,8 +143,7 @@ class PubSubPublisher:
 
                 log_info(
                     f"Published message to topic {topic_name}: message_id={message_id}, "
-                    f"attributes={message_attributes}, ordering_key={ordering_key}",
-                    correlation_id="",
+                    f"attributes={message_attributes}, ordering_key={ordering_key}"
                 )
 
                 return message_id
@@ -155,8 +152,7 @@ class PubSubPublisher:
                 # Topic doesn't exist - don't retry
                 log_warning(
                     f"Topic {topic_name} not found. Message not published. "
-                    f"Create the topic in GCP Console or via gcloud.",
-                    correlation_id="",
+                    f"Create the topic in GCP Console or via gcloud."
                 )
                 raise
 
@@ -168,8 +164,7 @@ class PubSubPublisher:
                     log_warning(
                         f"Rate limit or service unavailable publishing to {topic_name} "
                         f"(attempt {attempt + 1}/{max_retries + 1}): {e}. "
-                        f"Retrying in {wait_time}s...",
-                        correlation_id="",
+                        f"Retrying in {wait_time}s..."
                     )
                     await asyncio.sleep(wait_time)
                 else:

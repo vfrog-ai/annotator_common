@@ -48,7 +48,6 @@ def init_database() -> None:
         log_warning(
             "LOCAL_MODE enabled: Allowing invalid SSL certificates for MongoDB Atlas connection. "
             "This should only be used for local testing.",
-            correlation_id="",
         )
         # Add tlsAllowInvalidCertificates to the URI
         if "?" in uri:
@@ -86,7 +85,6 @@ def init_database() -> None:
         log_info(
             f"MONGODB_STRONG_CONSISTENCY enabled - using write/read concern 'majority' for replica sets, "
             f"read preference: {read_pref_mode}",
-            correlation_id="",
         )
         # Write Concern "majority": Ensures write is acknowledged by majority of replica set members
         # This guarantees the write is durable and replicated before the operation returns
@@ -151,7 +149,6 @@ def init_database() -> None:
                 "MongoDB authentication failed. Please check your MONGODB_URI credentials. "
                 "Verify that the username and password are correct, and that special characters "
                 "in the password are URL-encoded (e.g., @ becomes %40, # becomes %23).",
-                correlation_id="",
                 exc_info=True,
             )
         else:
