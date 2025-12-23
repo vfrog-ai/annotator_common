@@ -8,7 +8,7 @@ import aio_pika
 from aio_pika import Message, DeliveryMode
 from typing import Optional, Callable, Dict, Any
 from annotator_common.config import Config
-from annotator_common.logging import get_logger
+from annotator_common.logging import get_logger, log_info, log_warning, log_error
 
 
 logger = get_logger(__name__)
@@ -37,10 +37,10 @@ class AsyncQueueManager:
             )
 
             self._connected = True
-            logger.info(f"Connected to RabbitMQ at {Config.RABBITMQ_HOST}")
+            log_info(f"Connected to RabbitMQ at {Config.RABBITMQ_HOST}")
 
         except Exception as e:
-            logger.error(f"Failed to connect to RabbitMQ: {e}")
+            log_error(f"Failed to connect to RabbitMQ: {e}")
             raise
 
     async def close(self):
@@ -50,7 +50,7 @@ class AsyncQueueManager:
         if self.connection and not self.connection.is_closed:
             await self.connection.close()
         self._connected = False
-        logger.info("RabbitMQ connection closed")
+        log_info("RabbitMQ connection closed")
 
     async def _ensure_connected(self, retry_count: int = 3):
         """Ensure connection is established with automatic retry."""
@@ -62,13 +62,13 @@ class AsyncQueueManager:
                 await self.connect()
                 return
             except Exception as e:
-                logger.warning(
+                log_warning(
                     f"Connection attempt {attempt + 1}/{retry_count} failed: {e}"
                 )
                 if attempt < retry_count - 1:
                     await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
                 else:
-                    logger.error(
+                    log_error(
                         f"Failed to establish connection after {retry_count} attempts"
                     )
                     raise
@@ -91,17 +91,17 @@ class AsyncQueueManager:
             await self.channel.declare_queue(
                 queue_name, durable=durable, arguments=args, passive=passive
             )
-            logger.info(f"Declared queue: {queue_name}")
+            log_info(f"Declared queue: {queue_name}")
         except Exception as e:
             if not passive:
                 # Queue might already exist, try passive check
                 try:
                     await self.channel.declare_queue(queue_name, passive=True)
-                    logger.info(
+                    log_info(
                         f"Queue {queue_name} already exists with different settings, using existing"
                     )
                 except:
-                    logger.warning(f"Could not declare queue {queue_name}: {e}")
+                    log_warning(f"Could not declare queue {queue_name}: {e}")
                     raise
             else:
                 raise
@@ -114,7 +114,7 @@ class AsyncQueueManager:
         queue = await self.channel.get_queue(queue_name)
         await queue.bind(exchange_obj, routing_key=routing_key)
 
-        logger.info(f"Bound queue {queue_name} to exchange {exchange}")
+        log_info(f"Bound queue {queue_name} to exchange {exchange}")
 
     async def publish_message(
         self,
@@ -142,7 +142,7 @@ class AsyncQueueManager:
                 )
                 await exchange_obj.publish(message_obj, routing_key=routing_key)
 
-                logger.info(
+                log_info(
                     f"Published message to {routing_key}, queue: {routing_key}, priority: {priority}, message: {message}"
                 )
                 return  # Success
@@ -154,7 +154,7 @@ class AsyncQueueManager:
                 OSError,
                 asyncio.CancelledError,
             ) as e:
-                logger.warning(
+                log_warning(
                     f"Connection error during publish (attempt {attempt + 1}/{retry_count}): {e}"
                 )
 
@@ -172,7 +172,7 @@ class AsyncQueueManager:
                     await asyncio.sleep(0.5 * (attempt + 1))
                 else:
                     # Last attempt failed
-                    logger.error(
+                    log_error(
                         f"Failed to publish message after {retry_count} attempts: {e}, message: {message}"
                     )
                     raise
@@ -194,7 +194,7 @@ class AsyncQueueManager:
             await self.declare_queue(queue_name, priority=priority, passive=passive)
         except Exception as e:
             # If queue already exists with different settings, skip declaration
-            logger.info(
+            log_info(
                 f"Queue {queue_name} already exists, proceeding without redeclaration"
             )
 
@@ -208,7 +208,7 @@ class AsyncQueueManager:
                 data = json.loads(body)
                 dataset_image_id = data.get("dataset_image_id")
                 product_image_id = data.get("product_image_id")
-                logger.info(
+                log_info(
                     f"Received message from queue: {queue_name}, message: {data}, dataset_image_id: {dataset_image_id}, product_image_id: {product_image_id}"
                 )
 
@@ -217,17 +217,17 @@ class AsyncQueueManager:
                     # If callback returns False, it means the consumer cannot handle this message
                     # Nack and requeue so another consumer can process it
                     if result is False:
-                        logger.info(
+                        log_info(
                             f"Consumer rejected message (returned False), requeuing: dataset_image_id={dataset_image_id}, product_image_id={product_image_id}, event_type={data.get('event_type')}, queue: {queue_name}"
                         )
                         if not auto_ack:
                             try:
                                 await message.nack(requeue=True)
-                                logger.info(
+                                log_info(
                                     f"Successfully nacked and requeued message: dataset_image_id={dataset_image_id}, product_image_id={product_image_id}"
                                 )
                             except Exception as nack_err:
-                                logger.error(
+                                log_error(
                                     f"Failed to nack message (may already be acked): {nack_err}, dataset_image_id={dataset_image_id}, product_image_id={product_image_id}"
                                 )
                         return  # Don't ack or log as successfully processed
@@ -236,14 +236,14 @@ class AsyncQueueManager:
                         try:
                             await message.ack()
                         except (Exception, asyncio.CancelledError) as ack_err:
-                            logger.warning(
+                            log_warning(
                                 f"Ack failed (will ignore if channel closed): {ack_err}"
                             )
-                    logger.info(
+                    log_info(
                         f"Successfully processed message, dataset_image_id: {dataset_image_id}, product_image_id: {product_image_id}"
                     )
                 except Exception as e:
-                    logger.error(
+                    log_error(
                         f"Error processing message: {e}, message: {data}, dataset_image_id: {dataset_image_id}, product_image_id: {product_image_id}"
                     )
                     if not auto_ack:
@@ -263,24 +263,24 @@ class AsyncQueueManager:
 
                             # Ack original message
                             await message.ack()
-                            logger.info(
+                            log_info(
                                 f"Republished message with retry_count={retry_count}: dataset_image_id={dataset_image_id}, product_image_id={product_image_id}"
                             )
                         except (Exception, asyncio.CancelledError) as nack_err:
-                            logger.warning(
+                            log_warning(
                                 f"Republish failed (channel may be closed): {nack_err}"
                             )
                     # Don't re-raise - we've handled it, let consumer continue
             except Exception as e:
-                logger.error(f"Error in message wrapper (outer): {e}")
+                log_error(f"Error in message wrapper (outer): {e}")
                 # Don't re-raise - we've handled it at inner level
 
         await queue.consume(process_message)
-        logger.info(f"Started consuming from queue: {queue_name}")
+        log_info(f"Started consuming from queue: {queue_name}")
 
     async def start_consuming(self):
         """Start consuming messages (for async consumers, this is just a placeholder)."""
-        logger.info("Consumer started (async mode)")
+        log_info("Consumer started (async mode)")
         # In async mode, the consume() method already starts consuming
         # This is kept for compatibility
 
@@ -302,4 +302,3 @@ async def init_async_queue_manager() -> AsyncQueueManager:
     manager = await get_async_queue_manager()
     await manager.connect()
     return manager
-

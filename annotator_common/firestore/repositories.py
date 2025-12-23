@@ -5,7 +5,6 @@ This module provides repository classes that abstract Firestore operations,
 matching the MongoDB API patterns used in the codebase to minimize code changes.
 """
 
-import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from google.cloud.firestore_v1 import Client as FirestoreClient
@@ -21,8 +20,9 @@ from annotator_common.firestore.utils import (
 )
 from google.cloud.firestore_v1 import Increment as firestore_Increment
 from google.cloud.firestore_v1 import ArrayUnion as firestore_ArrayUnion
+from annotator_common.logging import get_logger, log_warning
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseRepository:
@@ -49,9 +49,13 @@ class BaseRepository:
             # Odd number: ends with document ID
             doc_ref = self.client.document(path_segments[0])
             for i in range(1, len(path_segments) - 1, 2):
-                doc_ref = doc_ref.collection(path_segments[i]).document(path_segments[i + 1])
+                doc_ref = doc_ref.collection(path_segments[i]).document(
+                    path_segments[i + 1]
+                )
             if len(path_segments) > 1:
-                doc_ref = doc_ref.collection(path_segments[-2]).document(path_segments[-1])
+                doc_ref = doc_ref.collection(path_segments[-2]).document(
+                    path_segments[-1]
+                )
             return doc_ref
 
 
@@ -61,13 +65,15 @@ class ProjectIterationRepository(BaseRepository):
     def get_by_id(self, project_iteration_id: str) -> Optional[Dict[str, Any]]:
         """Get project iteration by ID."""
         try:
-            doc_ref = self.client.collection("project_iterations").document(project_iteration_id)
+            doc_ref = self.client.collection("project_iterations").document(
+                project_iteration_id
+            )
             doc = doc_ref.get()
             if doc.exists:
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting project iteration {project_iteration_id}: {e}")
+            log_error(f"Error getting project iteration {project_iteration_id}: {e}")
             raise
 
     def create(self, project_iteration_id: str, data: Dict[str, Any]) -> None:
@@ -75,31 +81,45 @@ class ProjectIterationRepository(BaseRepository):
         try:
             data["project_iteration_id"] = project_iteration_id
             data = prepare_data_for_firestore(data)
-            doc_ref = self.client.collection("project_iterations").document(project_iteration_id)
+            doc_ref = self.client.collection("project_iterations").document(
+                project_iteration_id
+            )
             doc_ref.set(data)
             logger.debug(f"Created project iteration: {project_iteration_id}")
         except Exception as e:
-            logger.error(f"Error creating project iteration {project_iteration_id}: {e}")
+            log_error(f"Error creating project iteration {project_iteration_id}: {e}")
             raise
 
-    def update(self, project_iteration_id: str, updates: Dict[str, Any], transaction: Optional[Transaction] = None) -> None:
+    def update(
+        self,
+        project_iteration_id: str,
+        updates: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Update project iteration document."""
         try:
             updates = prepare_data_for_firestore(updates, use_server_timestamp=False)
             if "updated_at" not in updates:
                 updates["updated_at"] = SERVER_TIMESTAMP
 
-            doc_ref = self.client.collection("project_iterations").document(project_iteration_id)
+            doc_ref = self.client.collection("project_iterations").document(
+                project_iteration_id
+            )
             if transaction:
                 transaction.update(doc_ref, updates)
             else:
                 doc_ref.update(updates)
             logger.debug(f"Updated project iteration: {project_iteration_id}")
         except Exception as e:
-            logger.error(f"Error updating project iteration {project_iteration_id}: {e}")
+            log_error(f"Error updating project iteration {project_iteration_id}: {e}")
             raise
 
-    def increment_fields(self, project_iteration_id: str, increments: Dict[str, int], transaction: Optional[Transaction] = None) -> None:
+    def increment_fields(
+        self,
+        project_iteration_id: str,
+        increments: Dict[str, int],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Increment numeric fields (replaces MongoDB $inc)."""
         try:
             updates = {}
@@ -107,20 +127,26 @@ class ProjectIterationRepository(BaseRepository):
                 updates[field] = firestore_Increment(value)
             updates["updated_at"] = SERVER_TIMESTAMP
 
-            doc_ref = self.client.collection("project_iterations").document(project_iteration_id)
+            doc_ref = self.client.collection("project_iterations").document(
+                project_iteration_id
+            )
             if transaction:
                 transaction.update(doc_ref, updates)
             else:
                 doc_ref.update(updates)
         except Exception as e:
-            logger.error(f"Error incrementing fields for project iteration {project_iteration_id}: {e}")
+            log_error(
+                f"Error incrementing fields for project iteration {project_iteration_id}: {e}"
+            )
             raise
 
 
 class DatasetImageRepository(BaseRepository):
     """Repository for dataset_images subcollection."""
 
-    def get_by_id(self, project_iteration_id: str, dataset_image_id: str) -> Optional[Dict[str, Any]]:
+    def get_by_id(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get dataset image by ID."""
         try:
             doc_ref = (
@@ -134,10 +160,12 @@ class DatasetImageRepository(BaseRepository):
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting dataset image {dataset_image_id}: {e}")
+            log_error(f"Error getting dataset image {dataset_image_id}: {e}")
             raise
 
-    def list_by_project_iteration(self, project_iteration_id: str) -> List[Dict[str, Any]]:
+    def list_by_project_iteration(
+        self, project_iteration_id: str
+    ) -> List[Dict[str, Any]]:
         """List all dataset images for a project iteration."""
         try:
             collection_ref = (
@@ -148,10 +176,14 @@ class DatasetImageRepository(BaseRepository):
             docs = collection_ref.stream()
             return [doc_to_dict(doc) for doc in docs]
         except Exception as e:
-            logger.error(f"Error listing dataset images for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error listing dataset images for project {project_iteration_id}: {e}"
+            )
             raise
 
-    def create(self, project_iteration_id: str, dataset_image_id: str, data: Dict[str, Any]) -> None:
+    def create(
+        self, project_iteration_id: str, dataset_image_id: str, data: Dict[str, Any]
+    ) -> None:
         """Create a new dataset image document."""
         try:
             data["dataset_image_id"] = dataset_image_id
@@ -166,10 +198,16 @@ class DatasetImageRepository(BaseRepository):
             doc_ref.set(data)
             logger.debug(f"Created dataset image: {dataset_image_id}")
         except Exception as e:
-            logger.error(f"Error creating dataset image {dataset_image_id}: {e}")
+            log_error(f"Error creating dataset image {dataset_image_id}: {e}")
             raise
 
-    def update(self, project_iteration_id: str, dataset_image_id: str, updates: Dict[str, Any], transaction: Optional[Transaction] = None) -> None:
+    def update(
+        self,
+        project_iteration_id: str,
+        dataset_image_id: str,
+        updates: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Update dataset image document."""
         try:
             updates = prepare_data_for_firestore(updates, use_server_timestamp=False)
@@ -188,7 +226,7 @@ class DatasetImageRepository(BaseRepository):
                 doc_ref.update(updates)
             logger.debug(f"Updated dataset image: {dataset_image_id}")
         except Exception as e:
-            logger.error(f"Error updating dataset image {dataset_image_id}: {e}")
+            log_error(f"Error updating dataset image {dataset_image_id}: {e}")
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -203,17 +241,23 @@ class DatasetImageRepository(BaseRepository):
             for doc in collection_ref.stream():
                 doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} dataset images for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} dataset images for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting dataset images for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error deleting dataset images for project {project_iteration_id}: {e}"
+            )
             raise
 
 
 class ProductImageRepository(BaseRepository):
     """Repository for product_images subcollection."""
 
-    def get_by_id(self, project_iteration_id: str, product_image_id: str) -> Optional[Dict[str, Any]]:
+    def get_by_id(
+        self, project_iteration_id: str, product_image_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get product image by ID."""
         try:
             doc_ref = (
@@ -227,10 +271,12 @@ class ProductImageRepository(BaseRepository):
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting product image {product_image_id}: {e}")
+            log_error(f"Error getting product image {product_image_id}: {e}")
             raise
 
-    def list_by_project_iteration(self, project_iteration_id: str) -> List[Dict[str, Any]]:
+    def list_by_project_iteration(
+        self, project_iteration_id: str
+    ) -> List[Dict[str, Any]]:
         """List all product images for a project iteration."""
         try:
             collection_ref = (
@@ -241,10 +287,14 @@ class ProductImageRepository(BaseRepository):
             docs = collection_ref.stream()
             return [doc_to_dict(doc) for doc in docs]
         except Exception as e:
-            logger.error(f"Error listing product images for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error listing product images for project {project_iteration_id}: {e}"
+            )
             raise
 
-    def create(self, project_iteration_id: str, product_image_id: str, data: Dict[str, Any]) -> None:
+    def create(
+        self, project_iteration_id: str, product_image_id: str, data: Dict[str, Any]
+    ) -> None:
         """Create a new product image document."""
         try:
             data["product_image_id"] = product_image_id
@@ -259,10 +309,16 @@ class ProductImageRepository(BaseRepository):
             doc_ref.set(data)
             logger.debug(f"Created product image: {product_image_id}")
         except Exception as e:
-            logger.error(f"Error creating product image {product_image_id}: {e}")
+            log_error(f"Error creating product image {product_image_id}: {e}")
             raise
 
-    def update(self, project_iteration_id: str, product_image_id: str, updates: Dict[str, Any], transaction: Optional[Transaction] = None) -> None:
+    def update(
+        self,
+        project_iteration_id: str,
+        product_image_id: str,
+        updates: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Update product image document."""
         try:
             updates = prepare_data_for_firestore(updates, use_server_timestamp=False)
@@ -278,7 +334,7 @@ class ProductImageRepository(BaseRepository):
                 doc_ref.update(updates)
             logger.debug(f"Updated product image: {product_image_id}")
         except Exception as e:
-            logger.error(f"Error updating product image {product_image_id}: {e}")
+            log_error(f"Error updating product image {product_image_id}: {e}")
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -293,17 +349,23 @@ class ProductImageRepository(BaseRepository):
             for doc in collection_ref.stream():
                 doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} product images for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} product images for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting product images for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error deleting product images for project {project_iteration_id}: {e}"
+            )
             raise
 
 
 class CutoutRepository(BaseRepository):
     """Repository for cutouts subcollection."""
 
-    def get_by_id(self, project_iteration_id: str, cutout_id: str) -> Optional[Dict[str, Any]]:
+    def get_by_id(
+        self, project_iteration_id: str, cutout_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get cutout by ID."""
         try:
             doc_ref = (
@@ -317,10 +379,12 @@ class CutoutRepository(BaseRepository):
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting cutout {cutout_id}: {e}")
+            log_error(f"Error getting cutout {cutout_id}: {e}")
             raise
 
-    def list_by_dataset_image(self, project_iteration_id: str, dataset_image_id: str) -> List[Dict[str, Any]]:
+    def list_by_dataset_image(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> List[Dict[str, Any]]:
         """List all cutouts for a dataset image."""
         try:
             collection_ref = (
@@ -328,14 +392,18 @@ class CutoutRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutouts")
             )
-            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id))
+            query = collection_ref.where(
+                filter=FieldFilter("dataset_image_id", "==", dataset_image_id)
+            )
             docs = query.stream()
             return [doc_to_dict(doc) for doc in docs]
         except Exception as e:
-            logger.error(f"Error listing cutouts for dataset {dataset_image_id}: {e}")
+            log_error(f"Error listing cutouts for dataset {dataset_image_id}: {e}")
             raise
 
-    def count_by_dataset_image(self, project_iteration_id: str, dataset_image_id: str) -> int:
+    def count_by_dataset_image(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> int:
         """Count cutouts for a dataset image."""
         try:
             collection_ref = (
@@ -343,13 +411,17 @@ class CutoutRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutouts")
             )
-            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id))
+            query = collection_ref.where(
+                filter=FieldFilter("dataset_image_id", "==", dataset_image_id)
+            )
             return len(list(query.stream()))
         except Exception as e:
-            logger.error(f"Error counting cutouts for dataset {dataset_image_id}: {e}")
+            log_error(f"Error counting cutouts for dataset {dataset_image_id}: {e}")
             raise
 
-    def create(self, project_iteration_id: str, cutout_id: str, data: Dict[str, Any]) -> None:
+    def create(
+        self, project_iteration_id: str, cutout_id: str, data: Dict[str, Any]
+    ) -> None:
         """Create a new cutout document."""
         try:
             data["cutout_id"] = cutout_id
@@ -364,10 +436,16 @@ class CutoutRepository(BaseRepository):
             doc_ref.set(data)
             logger.debug(f"Created cutout: {cutout_id}")
         except Exception as e:
-            logger.error(f"Error creating cutout {cutout_id}: {e}")
+            log_error(f"Error creating cutout {cutout_id}: {e}")
             raise
 
-    def update(self, project_iteration_id: str, cutout_id: str, updates: Dict[str, Any], transaction: Optional[Transaction] = None) -> None:
+    def update(
+        self,
+        project_iteration_id: str,
+        cutout_id: str,
+        updates: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Update cutout document."""
         try:
             updates = prepare_data_for_firestore(updates, use_server_timestamp=False)
@@ -386,7 +464,7 @@ class CutoutRepository(BaseRepository):
                 doc_ref.update(updates)
             logger.debug(f"Updated cutout: {cutout_id}")
         except Exception as e:
-            logger.error(f"Error updating cutout {cutout_id}: {e}")
+            log_error(f"Error updating cutout {cutout_id}: {e}")
             raise
 
     def add_to_set(
@@ -409,17 +487,25 @@ class CutoutRepository(BaseRepository):
                 .collection("cutouts")
                 .document(cutout_id)
             )
-            updates = {field: firestore_ArrayUnion([value]), "updated_at": SERVER_TIMESTAMP}
+            updates = {
+                field: firestore_ArrayUnion([value]),
+                "updated_at": SERVER_TIMESTAMP,
+            }
             if transaction:
                 transaction.update(doc_ref, updates)
             else:
                 doc_ref.update(updates)
             logger.debug(f"Added to set field '{field}' for cutout: {cutout_id}")
         except Exception as e:
-            logger.error(f"Error adding to set for cutout {cutout_id} field {field}: {e}")
+            log_error(f"Error adding to set for cutout {cutout_id} field {field}: {e}")
             raise
 
-    def update_many(self, project_iteration_id: str, filter_dict: Dict[str, Any], updates: Dict[str, Any]) -> int:
+    def update_many(
+        self,
+        project_iteration_id: str,
+        filter_dict: Dict[str, Any],
+        updates: Dict[str, Any],
+    ) -> int:
         """Update multiple cutouts matching filter (replaces MongoDB update_many)."""
         try:
             collection_ref = (
@@ -454,7 +540,9 @@ class CutoutRepository(BaseRepository):
                 else:
                     firestore_updates[field] = value
 
-            firestore_updates = prepare_data_for_firestore(firestore_updates, use_server_timestamp=False)
+            firestore_updates = prepare_data_for_firestore(
+                firestore_updates, use_server_timestamp=False
+            )
             if "updated_at" not in firestore_updates:
                 firestore_updates["updated_at"] = SERVER_TIMESTAMP
 
@@ -480,7 +568,9 @@ class CutoutRepository(BaseRepository):
                         current_array = doc_data.get(field, [])
                         if isinstance(current_array, list):
                             pull_value = value["$pull"]
-                            current_array = [v for v in current_array if v != pull_value]
+                            current_array = [
+                                v for v in current_array if v != pull_value
+                            ]
                             doc_updates[field] = current_array
 
                 doc.reference.update(doc_updates)
@@ -489,7 +579,7 @@ class CutoutRepository(BaseRepository):
             logger.debug(f"Updated {updated_count} cutouts")
             return updated_count
         except Exception as e:
-            logger.error(f"Error updating cutouts: {e}")
+            log_error(f"Error updating cutouts: {e}")
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -504,17 +594,21 @@ class CutoutRepository(BaseRepository):
             for doc in collection_ref.stream():
                 doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} cutouts for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} cutouts for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting cutouts for project {project_iteration_id}: {e}")
+            log_error(f"Error deleting cutouts for project {project_iteration_id}: {e}")
             raise
 
 
 class CutoutAnalysisRepository(BaseRepository):
     """Repository for cutout_analyses subcollection."""
 
-    def get_by_id(self, project_iteration_id: str, cutout_id: str, analysis_type: str) -> Optional[Dict[str, Any]]:
+    def get_by_id(
+        self, project_iteration_id: str, cutout_id: str, analysis_type: str
+    ) -> Optional[Dict[str, Any]]:
         """Get cutout analysis by cutout ID and analysis type."""
         try:
             doc_id = f"{cutout_id}__{analysis_type}"
@@ -529,10 +623,12 @@ class CutoutAnalysisRepository(BaseRepository):
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting cutout analysis {cutout_id}/{analysis_type}: {e}")
+            log_error(f"Error getting cutout analysis {cutout_id}/{analysis_type}: {e}")
             raise
 
-    def count_by_dataset_image(self, project_iteration_id: str, dataset_image_id: str, analysis_type: str) -> int:
+    def count_by_dataset_image(
+        self, project_iteration_id: str, dataset_image_id: str, analysis_type: str
+    ) -> int:
         """Count cutout analyses for a dataset image and analysis type."""
         try:
             collection_ref = (
@@ -540,13 +636,23 @@ class CutoutAnalysisRepository(BaseRepository):
                 .document(project_iteration_id)
                 .collection("cutout_analyses")
             )
-            query = collection_ref.where(filter=FieldFilter("dataset_image_id", "==", dataset_image_id)).where(filter=FieldFilter("analysis_type", "==", analysis_type))
+            query = collection_ref.where(
+                filter=FieldFilter("dataset_image_id", "==", dataset_image_id)
+            ).where(filter=FieldFilter("analysis_type", "==", analysis_type))
             return len(list(query.stream()))
         except Exception as e:
-            logger.error(f"Error counting cutout analyses for dataset {dataset_image_id}: {e}")
+            log_error(
+                f"Error counting cutout analyses for dataset {dataset_image_id}: {e}"
+            )
             raise
 
-    def create_or_update(self, project_iteration_id: str, cutout_id: str, analysis_type: str, data: Dict[str, Any]) -> None:
+    def create_or_update(
+        self,
+        project_iteration_id: str,
+        cutout_id: str,
+        analysis_type: str,
+        data: Dict[str, Any],
+    ) -> None:
         """Create or update cutout analysis (replaces MongoDB upsert)."""
         try:
             doc_id = f"{cutout_id}__{analysis_type}"
@@ -567,7 +673,9 @@ class CutoutAnalysisRepository(BaseRepository):
             doc_ref.set(data, merge=True)
             logger.debug(f"Created/updated cutout analysis: {doc_id}")
         except Exception as e:
-            logger.error(f"Error creating/updating cutout analysis {cutout_id}/{analysis_type}: {e}")
+            log_error(
+                f"Error creating/updating cutout analysis {cutout_id}/{analysis_type}: {e}"
+            )
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -582,10 +690,14 @@ class CutoutAnalysisRepository(BaseRepository):
             for doc in collection_ref.stream():
                 doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} cutout analyses for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} cutout analyses for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting cutout analyses for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error deleting cutout analyses for project {project_iteration_id}: {e}"
+            )
             raise
 
 
@@ -641,10 +753,15 @@ class ProcessedEventRepository(BaseRepository):
             doc = doc_ref.get()
             return doc.exists
         except Exception as e:
-            logger.error(f"Error checking if event is processed: {e}")
+            log_error(f"Error checking if event is processed: {e}")
             return False
 
-    def mark_processed(self, event_type: str, event_data: Dict[str, Any], transaction: Optional[Transaction] = None) -> bool:
+    def mark_processed(
+        self,
+        event_type: str,
+        event_data: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> bool:
         """
         Mark event as processed (idempotent).
 
@@ -676,7 +793,14 @@ class ProcessedEventRepository(BaseRepository):
                 "created_at": SERVER_TIMESTAMP,
             }
             # Add event-specific fields
-            for key in ["image_type", "product_image_id", "dataset_image_id", "cutout_id", "analysis_type", "label"]:
+            for key in [
+                "image_type",
+                "product_image_id",
+                "dataset_image_id",
+                "cutout_id",
+                "analysis_type",
+                "label",
+            ]:
                 if key in event_data:
                     event_doc[key] = event_data[key]
 
@@ -686,7 +810,7 @@ class ProcessedEventRepository(BaseRepository):
                 doc_ref.set(event_doc)
             return False
         except Exception as e:
-            logger.error(f"Error marking event as processed: {e}")
+            log_error(f"Error marking event as processed: {e}")
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -701,17 +825,23 @@ class ProcessedEventRepository(BaseRepository):
             for doc in collection_ref.stream():
                 doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} processed events for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} processed events for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting processed events for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error deleting processed events for project {project_iteration_id}: {e}"
+            )
             raise
 
 
 class AnnotatedImageRepository(BaseRepository):
     """Repository for annotated_images subcollection and nested cutouts."""
 
-    def get_summary(self, project_iteration_id: str, dataset_image_id: str) -> Optional[Dict[str, Any]]:
+    def get_summary(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get annotated image summary document."""
         try:
             doc_ref = (
@@ -725,10 +855,12 @@ class AnnotatedImageRepository(BaseRepository):
                 return doc_to_dict(doc)
             return None
         except Exception as e:
-            logger.error(f"Error getting annotated image summary {dataset_image_id}: {e}")
+            log_error(f"Error getting annotated image summary {dataset_image_id}: {e}")
             raise
 
-    def list_annotations(self, project_iteration_id: str, dataset_image_id: str) -> List[Dict[str, Any]]:
+    def list_annotations(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> List[Dict[str, Any]]:
         """List all annotation items (cutouts) for an annotated image."""
         try:
             collection_ref = (
@@ -741,10 +873,12 @@ class AnnotatedImageRepository(BaseRepository):
             docs = collection_ref.stream()
             return [doc_to_dict(doc) for doc in docs]
         except Exception as e:
-            logger.error(f"Error listing annotations for dataset {dataset_image_id}: {e}")
+            log_error(f"Error listing annotations for dataset {dataset_image_id}: {e}")
             raise
 
-    def count_annotations(self, project_iteration_id: str, dataset_image_id: str) -> int:
+    def count_annotations(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> int:
         """Count annotation items for an annotated image."""
         try:
             collection_ref = (
@@ -756,21 +890,33 @@ class AnnotatedImageRepository(BaseRepository):
             )
             return len(list(collection_ref.stream()))
         except Exception as e:
-            logger.error(f"Error counting annotations for dataset {dataset_image_id}: {e}")
+            log_error(f"Error counting annotations for dataset {dataset_image_id}: {e}")
             raise
 
-    def get_distinct_cutout_ids(self, project_iteration_id: str, dataset_image_id: str) -> List[str]:
+    def get_distinct_cutout_ids(
+        self, project_iteration_id: str, dataset_image_id: str
+    ) -> List[str]:
         """Get distinct cutout IDs (replaces MongoDB distinct)."""
         try:
             # Firestore doesn't have distinct, so we query and de-duplicate
             annotations = self.list_annotations(project_iteration_id, dataset_image_id)
-            cutout_ids = [ann.get("cutout_id") for ann in annotations if ann.get("cutout_id")]
+            cutout_ids = [
+                ann.get("cutout_id") for ann in annotations if ann.get("cutout_id")
+            ]
             return list(set(cutout_ids))
         except Exception as e:
-            logger.error(f"Error getting distinct cutout IDs for dataset {dataset_image_id}: {e}")
+            log_error(
+                f"Error getting distinct cutout IDs for dataset {dataset_image_id}: {e}"
+            )
             raise
 
-    def create_or_update_annotation(self, project_iteration_id: str, dataset_image_id: str, cutout_id: str, data: Dict[str, Any]) -> None:
+    def create_or_update_annotation(
+        self,
+        project_iteration_id: str,
+        dataset_image_id: str,
+        cutout_id: str,
+        data: Dict[str, Any],
+    ) -> None:
         """Create or update annotation item (replaces MongoDB bulk_write with upsert)."""
         try:
             data["cutout_id"] = cutout_id
@@ -791,10 +937,17 @@ class AnnotatedImageRepository(BaseRepository):
             doc_ref.set(data, merge=True)
             logger.debug(f"Created/updated annotation: {dataset_image_id}/{cutout_id}")
         except Exception as e:
-            logger.error(f"Error creating/updating annotation {dataset_image_id}/{cutout_id}: {e}")
+            log_error(
+                f"Error creating/updating annotation {dataset_image_id}/{cutout_id}: {e}"
+            )
             raise
 
-    def bulk_write_annotations(self, project_iteration_id: str, dataset_image_id: str, annotations: List[Dict[str, Any]]) -> None:
+    def bulk_write_annotations(
+        self,
+        project_iteration_id: str,
+        dataset_image_id: str,
+        annotations: List[Dict[str, Any]],
+    ) -> None:
         """Bulk write annotations (replaces MongoDB bulk_write)."""
         try:
             batch = self.client.batch()
@@ -809,7 +962,7 @@ class AnnotatedImageRepository(BaseRepository):
             for annotation in annotations:
                 cutout_id = annotation.get("cutout_id")
                 if not cutout_id:
-                    logger.warning(f"Skipping annotation without cutout_id: {annotation}")
+                    log_warning(f"Skipping annotation without cutout_id: {annotation}")
                     continue
 
                 annotation["project_iteration_id"] = project_iteration_id
@@ -822,12 +975,22 @@ class AnnotatedImageRepository(BaseRepository):
                 batch.set(doc_ref, annotation, merge=True)
 
             batch.commit()
-            logger.debug(f"Bulk wrote {len(annotations)} annotations for dataset {dataset_image_id}")
+            logger.debug(
+                f"Bulk wrote {len(annotations)} annotations for dataset {dataset_image_id}"
+            )
         except Exception as e:
-            logger.error(f"Error bulk writing annotations for dataset {dataset_image_id}: {e}")
+            log_error(
+                f"Error bulk writing annotations for dataset {dataset_image_id}: {e}"
+            )
             raise
 
-    def update_summary(self, project_iteration_id: str, dataset_image_id: str, updates: Dict[str, Any], transaction: Optional[Transaction] = None) -> None:
+    def update_summary(
+        self,
+        project_iteration_id: str,
+        dataset_image_id: str,
+        updates: Dict[str, Any],
+        transaction: Optional[Transaction] = None,
+    ) -> None:
         """Update annotated image summary document."""
         try:
             updates = prepare_data_for_firestore(updates, use_server_timestamp=False)
@@ -846,7 +1009,7 @@ class AnnotatedImageRepository(BaseRepository):
                 doc_ref.set(updates, merge=True)
             logger.debug(f"Updated annotated image summary: {dataset_image_id}")
         except Exception as e:
-            logger.error(f"Error updating annotated image summary {dataset_image_id}: {e}")
+            log_error(f"Error updating annotated image summary {dataset_image_id}: {e}")
             raise
 
     def delete_by_project_iteration(self, project_iteration_id: str) -> int:
@@ -866,9 +1029,12 @@ class AnnotatedImageRepository(BaseRepository):
                 # Delete summary
                 summary_doc.reference.delete()
                 deleted_count += 1
-            logger.debug(f"Deleted {deleted_count} annotated images for project {project_iteration_id}")
+            logger.debug(
+                f"Deleted {deleted_count} annotated images for project {project_iteration_id}"
+            )
             return deleted_count
         except Exception as e:
-            logger.error(f"Error deleting annotated images for project {project_iteration_id}: {e}")
+            log_error(
+                f"Error deleting annotated images for project {project_iteration_id}: {e}"
+            )
             raise
-

@@ -26,29 +26,33 @@ def init_firestore() -> None:
 
     # Check if emulator is configured (local/CI mode)
     if emulator_host:
-        logger.info(f"Initializing Firestore Emulator connection: {emulator_host}")
+        log_info(f"Initializing Firestore Emulator connection: {emulator_host}")
         os.environ["FIRESTORE_EMULATOR_HOST"] = emulator_host
         # Emulator doesn't require credentials
         _client = firestore.Client(project=project_id)
-        logger.info(f"Firestore Emulator connected to project: {project_id}")
+        log_info(f"Firestore Emulator connected to project: {project_id}")
     else:
         # Production mode: use Application Default Credentials (ADC)
         # Cloud Run service account will be used automatically
-        logger.info(f"Initializing Firestore managed connection for project: {project_id}")
+        log_info(f"Initializing Firestore managed connection for project: {project_id}")
         try:
             _client = firestore.Client(project=project_id)
-            logger.info(f"Firestore client initialized successfully for project: {project_id}")
+            log_info(
+                f"Firestore client initialized successfully for project: {project_id}"
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize Firestore client: {e}")
+            log_error(f"Failed to initialize Firestore client: {e}")
             raise
 
     # Verify connection
     try:
         # Try a simple read operation to verify connection
         _client.collection("_health_check").limit(1).stream()
-        logger.info("Firestore connection verified")
+        log_info("Firestore connection verified")
     except Exception as e:
-        logger.warning(f"Firestore connection verification failed (may be expected in emulator): {e}")
+        log_warning(
+            f"Firestore connection verification failed (may be expected in emulator): {e}"
+        )
 
 
 def get_firestore_client() -> FirestoreClient:
@@ -67,5 +71,4 @@ def close_firestore() -> None:
     # Firestore client doesn't have an explicit close method,
     # but we can reset the reference
     _client = None
-    logger.info("Firestore client reference reset")
-
+    log_info("Firestore client reference reset")

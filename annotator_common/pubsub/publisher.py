@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Union
 from google.cloud import pubsub_v1
 from google.api_core import exceptions
 from annotator_common.config import Config
-from annotator_common.logging import get_logger
+from annotator_common.logging import get_logger, log_info, log_warning, log_error
 from pydantic import BaseModel
 
 logger = get_logger(__name__)
@@ -33,9 +33,12 @@ def get_publisher_client() -> pubsub_v1.PublisherClient:
     if _publisher_client is None:
         _publisher_client = pubsub_v1.PublisherClient()
         if PUBSUB_EMULATOR_HOST:
-            logger.info(f"Created Pub/Sub publisher client (emulator mode: {PUBSUB_EMULATOR_HOST})")
+            log_info(
+                f"Created Pub/Sub publisher client (emulator mode: {PUBSUB_EMULATOR_HOST})",
+                correlation_id="",
+            )
         else:
-            logger.info("Created Pub/Sub publisher client (production mode)")
+            log_info("Created Pub/Sub publisher client (production mode)")
     return _publisher_client
 
 
@@ -52,7 +55,7 @@ class PubSubPublisher:
         """
         # Cache for verified topics to avoid repeated existence checks (rate limit optimization)
         self._verified_topics: set = set()
-        
+
         # Require GCP_PROJECT_ID
         self.project_id = project_id or Config.GCP_PROJECT_ID
         if not self.project_id:
@@ -67,13 +70,18 @@ class PubSubPublisher:
 
         # Create client (will use emulator if PUBSUB_EMULATOR_HOST is set)
         self._client = get_publisher_client()
-        logger.info(f"Initialized PubSubPublisher for project: {self.project_id}")
+        log_info(
+            f"Initialized PubSubPublisher for project: {self.project_id}",
+            correlation_id="",
+        )
 
     def _get_topic_path(self, topic_name: str) -> str:
         """Get full topic path."""
         return self._client.topic_path(self.project_id, topic_name)
 
-    def _normalize_message(self, message: Union[Dict[str, Any], BaseModel]) -> Dict[str, Any]:
+    def _normalize_message(
+        self, message: Union[Dict[str, Any], BaseModel]
+    ) -> Dict[str, Any]:
         """Convert a pydantic model to a JSON-serializable dict (or pass through dicts)."""
         if isinstance(message, BaseModel):
             return message.model_dump(mode="json")
@@ -89,7 +97,7 @@ class PubSubPublisher:
     ) -> str:
         """
         Publish a message to a Pub/Sub topic with retry logic for rate limiting.
-        
+
         Uses Pub/Sub emulator if PUBSUB_EMULATOR_HOST is set, otherwise uses production Pub/Sub.
 
         Args:
@@ -135,18 +143,20 @@ class PubSubPublisher:
                 # Wait for publish to complete (run in thread pool for async compatibility)
                 message_id = await asyncio.to_thread(future.result, timeout=30)
 
-                logger.info(
+                log_info(
                     f"Published message to topic {topic_name}: message_id={message_id}, "
-                    f"attributes={message_attributes}, ordering_key={ordering_key}"
+                    f"attributes={message_attributes}, ordering_key={ordering_key}",
+                    correlation_id="",
                 )
 
                 return message_id
 
             except exceptions.NotFound:
                 # Topic doesn't exist - don't retry
-                logger.warning(
+                log_warning(
                     f"Topic {topic_name} not found. Message not published. "
-                    f"Create the topic in GCP Console or via gcloud."
+                    f"Create the topic in GCP Console or via gcloud.",
+                    correlation_id="",
                 )
                 raise
 
@@ -155,31 +165,31 @@ class PubSubPublisher:
                 last_exception = e
                 if attempt < max_retries:
                     wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
-                    logger.warning(
+                    log_warning(
                         f"Rate limit or service unavailable publishing to {topic_name} "
                         f"(attempt {attempt + 1}/{max_retries + 1}): {e}. "
-                        f"Retrying in {wait_time}s..."
+                        f"Retrying in {wait_time}s...",
+                        correlation_id="",
                     )
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error(
-                        f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts "
-                        f"(rate limit/service unavailable): {e}, message: {message}"
+                    log_error(
+                        f"Failed to publish {message.get('event_type')} to topic {topic_name} after {max_retries + 1} attempts "
+                        f"(rate limit/service unavailable): {e}, message: {message}",
+                        correlation_id=message.get("correlation_id", ""),
+                        project_iteration_id=message.get("project_iteration_id", ""),
+                        event_type=message.get("event_type", ""),
+                        exc_info=True,
                     )
-                    raise
-
-            except Exception as e:
-                # Other errors - don't retry, just raise
-                logger.error(
-                    f"Failed to publish message to topic {topic_name}: {e}, message: {message}"
-                )
-                raise
-
         # Should never reach here, but just in case
         if last_exception:
             raise last_exception
-        raise Exception(
-            f"Failed to publish message to topic {topic_name} after {max_retries + 1} attempts"
+        log_error(
+            f"Failed to publish {message.get('event_type', '')} to topic {topic_name} after {max_retries + 1} attempts",
+            correlation_id=message.get("correlation_id", ""),
+            project_iteration_id=message.get("project_iteration_id", ""),
+            event_type=message.get("event_type", ""),
+            exc_info=True,
         )
 
     def ensure_topic_exists(self, topic_name: str) -> str:
@@ -209,16 +219,17 @@ class PubSubPublisher:
             # Topic doesn't exist, create it
             try:
                 self._client.create_topic(request={"name": topic_path})
-                logger.info(f"Created topic: {topic_name}")
+                log_info(f"Created topic: {topic_name}")
                 # Cache that we've verified this topic exists
                 self._verified_topics.add(topic_name)
             except exceptions.AlreadyExists:
                 # Race condition - topic was created between check and create
-                logger.debug(f"Topic {topic_name} was created concurrently")
+                # Topic was created concurrently (debug level, no need to log)
+                pass
                 # Cache that we've verified this topic exists
                 self._verified_topics.add(topic_name)
             except Exception as e:
-                logger.warning(f"Could not create topic {topic_name}: {e}")
+                log_warning(f"Could not create topic {topic_name}: {e}")
                 # Don't cache on error - we'll retry next time
 
         return topic_path

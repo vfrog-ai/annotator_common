@@ -30,7 +30,7 @@ def load_image_from_gcs_or_local(image_path: str) -> np.ndarray:
     try:
         if image_path.startswith("gs://"):
             # Download from GCS
-            logger.info(f"Loading image from GCS: {image_path}")
+            log_info(f"Loading image from GCS: {image_path}")
             
             # Extract bucket name and blob path
             path_parts = image_path.replace("gs://", "").split("/", 1)
@@ -55,11 +55,11 @@ def load_image_from_gcs_or_local(image_path: str) -> np.ndarray:
             if image is None:
                 raise Exception(f"Could not decode image from GCS: {image_path}")
             
-            logger.info(f"Successfully loaded image from GCS: {image_path} ({len(image_bytes)} bytes)")
+            log_info(f"Successfully loaded image from GCS: {image_path} ({len(image_bytes)} bytes)")
             return image
         else:
             # Read from local file system
-            logger.info(f"Loading image from local path: {image_path}")
+            log_info(f"Loading image from local path: {image_path}")
             
             if not os.path.exists(image_path):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
@@ -68,11 +68,11 @@ def load_image_from_gcs_or_local(image_path: str) -> np.ndarray:
             if image is None:
                 raise Exception(f"Could not read image: {image_path}")
             
-            logger.info(f"Successfully loaded image from local path: {image_path}")
+            log_info(f"Successfully loaded image from local path: {image_path}")
             return image
             
     except Exception as e:
-        logger.error(f"Error loading image: {e}, image_path: {image_path}")
+        log_error(f"Error loading image: {e}, image_path: {image_path}")
         raise
 
 
@@ -94,7 +94,7 @@ def save_image_to_gcs_or_local(image: np.ndarray, save_path: str) -> str:
     try:
         if save_path.startswith("gs://"):
             # Upload to GCS
-            logger.info(f"Saving image to GCS: {save_path}")
+            log_info(f"Saving image to GCS: {save_path}")
             
             # Extract bucket name and blob path
             path_parts = save_path.replace("gs://", "").split("/", 1)
@@ -117,11 +117,11 @@ def save_image_to_gcs_or_local(image: np.ndarray, save_path: str) -> str:
             blob = bucket.blob(blob_path)
             blob.upload_from_string(image_bytes, content_type='image/jpeg')
             
-            logger.info(f"Successfully saved image to GCS: {save_path} ({len(image_bytes)} bytes)")
+            log_info(f"Successfully saved image to GCS: {save_path} ({len(image_bytes)} bytes)")
             return save_path
         else:
             # Save to local file system
-            logger.info(f"Saving image to local path: {save_path}")
+            log_info(f"Saving image to local path: {save_path}")
             
             # Create directory if needed
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -131,10 +131,10 @@ def save_image_to_gcs_or_local(image: np.ndarray, save_path: str) -> str:
             if not os.path.exists(save_path):
                 raise Exception(f"Failed to save image: {save_path}")
             
-            logger.info(f"Successfully saved image to local path: {save_path}")
+            log_info(f"Successfully saved image to local path: {save_path}")
             return save_path
             
     except Exception as e:
-        logger.error(f"Error saving image: {e}, save_path: {save_path}")
+        log_error(f"Error saving image: {e}, save_path: {save_path}")
         raise
 

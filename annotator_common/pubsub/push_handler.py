@@ -48,7 +48,8 @@ def parse_pubsub_push_message(request_data: Dict[str, Any]) -> Dict[str, Any]:
         # Pub/Sub format has a "message" field with "data" inside
         if "message" not in request_data:
             # This is a direct message format (LOCAL_MODE)
-            logger.debug("Received direct message format (LOCAL_MODE), using as-is")
+            # Direct message format (debug level, no need to log)
+            pass
             return request_data
 
         # This is Pub/Sub push format
@@ -78,15 +79,13 @@ def parse_pubsub_push_message(request_data: Dict[str, Any]) -> Dict[str, Any]:
         publish_time = message.get("publishTime")
         attributes = message.get("attributes", {})
 
-        logger.debug(
-            f"Parsed Pub/Sub message: message_id={message_id}, "
-            f"publish_time={publish_time}, attributes={attributes}"
-        )
+        # Parsed Pub/Sub message (debug level, no need to log)
+        pass
 
         return payload
 
     except Exception as e:
-        logger.error(
+        log_error(
             f"Error parsing Pub/Sub push message: {e}, request_data: {request_data}"
         )
         raise
