@@ -604,3 +604,61 @@ def log_warning(
         kwargs.setdefault("service_name", service_name)
 
     structured_logger.warning(message, correlation_id=correlation_id, **kwargs)
+
+
+def log_error(
+    message: str,
+    correlation_id: str = "",
+    logger_name: Optional[str] = None,
+    project_iteration_id: Optional[str] = None,
+    dataset_image_id: Optional[str] = None,
+    product_image_id: Optional[str] = None,
+    callback_url: Optional[str] = None,
+    project_id: Optional[str] = None,
+    service_name: Optional[str] = None,
+    exc_info: bool = False,
+    **kwargs,
+):
+    """
+    Log an error message with correlation_id (always required, can be empty string).
+
+    This function always uses structured logging with correlation_id.
+    project_iteration_id should be passed as a kwarg, not in the message string.
+
+    Args:
+        message: The log message (should not include project_iteration_id in the string)
+        correlation_id: Correlation_id for request tracing (required, can be empty string)
+        logger_name: Optional logger name (defaults to caller's module name)
+        exc_info: If True, include exception traceback information
+        **kwargs: Additional structured fields to include in the log (e.g., project_iteration_id)
+    """
+    import inspect
+
+    # Get caller's module name if not provided
+    if logger_name is None:
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            logger_name = caller_frame.f_globals.get("__name__", "root")
+        finally:
+            del frame
+
+    # Always use structured logger with correlation_id
+    structured_logger = get_structured_logger(logger_name)
+    # Preserve any explicit kwargs values (don't override if caller passed them)
+    if project_iteration_id is not None:
+        kwargs.setdefault("project_iteration_id", project_iteration_id)
+    if dataset_image_id is not None:
+        kwargs.setdefault("dataset_image_id", dataset_image_id)
+    if product_image_id is not None:
+        kwargs.setdefault("product_image_id", product_image_id)
+    if callback_url is not None:
+        kwargs.setdefault("callback_url", callback_url)
+    if project_id is not None:
+        kwargs.setdefault("project_id", project_id)
+    if service_name is not None:
+        kwargs.setdefault("service_name", service_name)
+
+    structured_logger.error(
+        message, correlation_id=correlation_id, exc_info=exc_info, **kwargs
+    )
