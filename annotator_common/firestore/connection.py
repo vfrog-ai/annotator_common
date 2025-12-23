@@ -3,13 +3,13 @@ Firestore connection management.
 """
 
 import os
-import logging
 from typing import Optional
 from google.cloud import firestore
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from annotator_common.config import Config
+from annotator_common.logging import get_logger, log_info, log_warning, log_error
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _client: Optional[FirestoreClient] = None
 
@@ -71,4 +71,4 @@ def close_firestore() -> None:
     # Firestore client doesn't have an explicit close method,
     # but we can reset the reference
     _client = None
-    log_info("Firestore client reference reset")
+    log_info("Firestore client reference reset", correlation_id="")
