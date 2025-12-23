@@ -5,7 +5,8 @@ This module provides repository classes that abstract Firestore operations,
 matching the MongoDB API patterns used in the codebase to minimize code changes.
 """
 
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from google.cloud.firestore_v1 import Client as FirestoreClient
 from google.cloud.firestore_v1 import Transaction
@@ -20,9 +21,25 @@ from annotator_common.firestore.utils import (
 )
 from google.cloud.firestore_v1 import Increment as firestore_Increment
 from google.cloud.firestore_v1 import ArrayUnion as firestore_ArrayUnion
-from annotator_common.logging import get_logger, log_warning
+from annotator_common.logging import get_logger, log_warning, log_error
 
 logger = get_logger(__name__)
+
+
+def _calculate_expires_at() -> datetime:
+    """
+    Calculate expiration timestamp for project_iteration documents.
+    
+    Returns:
+        datetime: Expiration timestamp (90 days for production, 30 days for other environments)
+    """
+    environment = os.getenv("ENVIRONMENT", "dev").lower()
+    if environment == "production" or environment == "prod":
+        days = 90
+    else:
+        days = 30
+    
+    return datetime.utcnow() + timedelta(days=days)
 
 
 class BaseRepository:
@@ -80,6 +97,9 @@ class ProjectIterationRepository(BaseRepository):
         """Create a new project iteration document."""
         try:
             data["project_iteration_id"] = project_iteration_id
+            # Set expires_at if not already provided
+            if "expires_at" not in data:
+                data["expires_at"] = _calculate_expires_at()
             data = prepare_data_for_firestore(data)
             doc_ref = self.client.collection("project_iterations").document(
                 project_iteration_id
