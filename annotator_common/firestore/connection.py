@@ -22,30 +22,38 @@ def init_firestore() -> None:
         return
 
     project_id = Config.GOOGLE_CLOUD_PROJECT
-    database_id = Config.FIRESTORE_DATABASE
+    database_id = Config.FIRESTORE_DATABASE  # None means use default database
     emulator_host = Config.FIRESTORE_EMULATOR_HOST
 
     # Check if emulator is configured (local/CI mode)
     if emulator_host:
+        db_info = f"database: {database_id if database_id else '(default)'}"
         log_info(
-            f"Initializing Firestore Emulator connection: {emulator_host}, database: {database_id}"
+            f"Initializing Firestore Emulator connection: {emulator_host}, {db_info}"
         )
         os.environ["FIRESTORE_EMULATOR_HOST"] = emulator_host
         # Emulator doesn't require credentials
-        _client = firestore.Client(project=project_id, database=database_id)
-        log_info(
-            f"Firestore Emulator connected to project: {project_id}, database: {database_id}"
-        )
+        # Only pass database parameter if explicitly set, otherwise use default
+        if database_id:
+            _client = firestore.Client(project=project_id, database=database_id)
+        else:
+            _client = firestore.Client(project=project_id)
+        log_info(f"Firestore Emulator connected to project: {project_id}, {db_info}")
     else:
         # Production mode: use Application Default Credentials (ADC)
         # Cloud Run service account will be used automatically
+        db_info = f"database: {database_id if database_id else '(default)'}"
         log_info(
-            f"Initializing Firestore managed connection for project: {project_id}, database: {database_id}"
+            f"Initializing Firestore managed connection for project: {project_id}, {db_info}"
         )
         try:
-            _client = firestore.Client(project=project_id, database=database_id)
+            # Only pass database parameter if explicitly set, otherwise use default
+            if database_id:
+                _client = firestore.Client(project=project_id, database=database_id)
+            else:
+                _client = firestore.Client(project=project_id)
             log_info(
-                f"Firestore client initialized successfully for project: {project_id}, database: {database_id}"
+                f"Firestore client initialized successfully for project: {project_id}, {db_info}"
             )
         except Exception as e:
             log_error(f"Failed to initialize Firestore client: {e}")

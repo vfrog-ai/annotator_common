@@ -64,7 +64,7 @@ class Config:
         "GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", "local-dev")
     )
     FIRESTORE_EMULATOR_HOST: Optional[str] = os.getenv("FIRESTORE_EMULATOR_HOST")
-    FIRESTORE_DATABASE: str = os.getenv("FIRESTORE_DATABASE", "annotator")
+    FIRESTORE_DATABASE: Optional[str] = os.getenv("FIRESTORE_DATABASE")
 
     # Image Storage Configuration
     IMAGE_STORAGE_PATH: str = os.getenv("IMAGE_STORAGE_PATH", "/images")
