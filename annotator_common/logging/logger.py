@@ -181,8 +181,32 @@ class ElasticsearchHandler(logging.Handler):
                         "message": formatted_message,
                     }
 
+            # Ensure index exists before writing (avoids "primary shard not active" errors)
+            # This creates the index with default settings if it doesn't exist
+            # Use a shorter timeout for the existence check to avoid blocking if Elasticsearch is slow
+            try:
+                exists_result = self.es_client.indices.exists(
+                    index=index_name, request_timeout=0.5
+                )
+                if not exists_result:
+                    self.es_client.indices.create(
+                        index=index_name,
+                        settings={
+                            "number_of_shards": 1,
+                            "number_of_replicas": 0,  # No replicas for local dev
+                            "auto_expand_replicas": "0-1",  # Allow 0-1 replicas if needed
+                        },
+                        ignore=400,  # Ignore 400 (Bad Request) if index already exists
+                        request_timeout=1,  # Short timeout for index creation
+                    )
+            except Exception:
+                # If index creation/check fails, try to write anyway (index might have been created by another process)
+                # This prevents connection timeouts from blocking log writes
+                pass
+
             # Index the document - ALL fields in doc will be stored as top-level fields in Elasticsearch
-            self.es_client.index(index=index_name, document=doc)
+            # Use a short timeout to avoid blocking if Elasticsearch is slow/unavailable
+            self.es_client.index(index=index_name, document=doc, request_timeout=1)
         except Exception as e:
             # Silently fail - don't break logging if Elasticsearch is unavailable
             # But log to stderr for debugging (using print, not logging, to avoid recursion)
