@@ -22,23 +22,30 @@ def init_firestore() -> None:
         return
 
     project_id = Config.GOOGLE_CLOUD_PROJECT
+    database_id = Config.FIRESTORE_DATABASE
     emulator_host = Config.FIRESTORE_EMULATOR_HOST
 
     # Check if emulator is configured (local/CI mode)
     if emulator_host:
-        log_info(f"Initializing Firestore Emulator connection: {emulator_host}")
+        log_info(
+            f"Initializing Firestore Emulator connection: {emulator_host}, database: {database_id}"
+        )
         os.environ["FIRESTORE_EMULATOR_HOST"] = emulator_host
         # Emulator doesn't require credentials
-        _client = firestore.Client(project=project_id)
-        log_info(f"Firestore Emulator connected to project: {project_id}")
+        _client = firestore.Client(project=project_id, database=database_id)
+        log_info(
+            f"Firestore Emulator connected to project: {project_id}, database: {database_id}"
+        )
     else:
         # Production mode: use Application Default Credentials (ADC)
         # Cloud Run service account will be used automatically
-        log_info(f"Initializing Firestore managed connection for project: {project_id}")
+        log_info(
+            f"Initializing Firestore managed connection for project: {project_id}, database: {database_id}"
+        )
         try:
-            _client = firestore.Client(project=project_id)
+            _client = firestore.Client(project=project_id, database=database_id)
             log_info(
-                f"Firestore client initialized successfully for project: {project_id}"
+                f"Firestore client initialized successfully for project: {project_id}, database: {database_id}"
             )
         except Exception as e:
             log_error(f"Failed to initialize Firestore client: {e}")
