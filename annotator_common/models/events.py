@@ -136,6 +136,8 @@ class StartProjectIterationEvent(ProjectEvent):
     """Command: kick off a project iteration (published by API service)."""
 
     callback_url: Optional[str] = None
+    callback_cost_url: Optional[str] = None  # URL for cost tracking callbacks
+    organisation_id: Optional[str] = None  # Organisation ID for cost tracking
     product_image: ImageInput
     dataset_images: List[ImageInput]
 
