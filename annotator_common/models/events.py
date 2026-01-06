@@ -138,6 +138,7 @@ class StartProjectIterationEvent(ProjectEvent):
     callback_url: Optional[str] = None
     callback_cost_url: Optional[str] = None  # URL for cost tracking callbacks
     organisation_id: Optional[str] = None  # Organisation ID for cost tracking
+    industry: Optional[str] = None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
     product_image: ImageInput
     dataset_images: List[ImageInput]
 
@@ -155,6 +156,7 @@ class CutoutExtractionEvent(ProjectEvent):
 
     image_path: str
     image_type: Literal["dataset"] = "dataset"
+    industry: Optional[str] = None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
 
 
 class AnalyzeProductImageEvent(ProjectEvent):
