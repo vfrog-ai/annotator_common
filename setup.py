@@ -34,6 +34,7 @@ setup(
         # elasticsearch-py 9.x sends compatible-with=9 headers which ES 8 rejects.
         "elasticsearch>=8.11.0,<9",
         "aiohttp>=3.9.0",  # For HTTP service endpoints
+        "requests>=2.31.0",  # For downloading images from HTTP/HTTPS URLs
     ],
 )
 

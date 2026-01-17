@@ -755,6 +755,9 @@ class ProcessedEventRepository(BaseRepository):
         elif event_type == "annotate_dataset":
             dataset_image_id = event_data.get("dataset_image_id", "")
             return f"annotate_dataset__{dataset_image_id}"
+        elif event_type == "zero_shot_detection":
+            dataset_image_id = event_data.get("dataset_image_id", "")
+            return f"zero_shot_detection__{dataset_image_id}"
 
         # Fallback: use event_type + project_iteration_id
         return f"{event_type}__{project_iteration_id}"

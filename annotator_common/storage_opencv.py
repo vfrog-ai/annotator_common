@@ -1,12 +1,13 @@
 """
-Storage utilities for loading and saving images from Google Cloud Storage or local file system using OpenCV.
+Storage utilities for loading and saving images from Google Cloud Storage, HTTP/HTTPS URLs, or local file system using OpenCV.
 """
 
 import os
 import cv2
 import numpy as np
+import requests
 from google.cloud import storage
-from annotator_common.logging import setup_logger
+from annotator_common.logging import setup_logger, log_info, log_error
 from annotator_common.config import Config
 
 logger = setup_logger(Config.SERVICE_NAME, Config.LOG_LEVEL)
@@ -14,10 +15,10 @@ logger = setup_logger(Config.SERVICE_NAME, Config.LOG_LEVEL)
 
 def load_image_from_gcs_or_local(image_path: str) -> np.ndarray:
     """
-    Load an image from GCS or local file system as numpy array for OpenCV.
+    Load an image from GCS, HTTP/HTTPS URL, or local file system as numpy array for OpenCV.
     
     Args:
-        image_path: GCS path (gs://bucket/path) or local file path
+        image_path: GCS path (gs://bucket/path), HTTP/HTTPS URL, or local file path
         
     Returns:
         Image as numpy array (BGR format for OpenCV)
@@ -56,6 +57,26 @@ def load_image_from_gcs_or_local(image_path: str) -> np.ndarray:
                 raise Exception(f"Could not decode image from GCS: {image_path}")
             
             log_info(f"Successfully loaded image from GCS: {image_path} ({len(image_bytes)} bytes)")
+            return image
+        elif image_path.startswith("http://") or image_path.startswith("https://"):
+            # Download from HTTP/HTTPS URL
+            log_info(f"Loading image from URL: {image_path}")
+            
+            # Download image from URL
+            response = requests.get(image_path, timeout=30, stream=True)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            
+            # Read image bytes
+            image_bytes = response.content
+            
+            # Convert bytes to numpy array
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if image is None:
+                raise Exception(f"Could not decode image from URL: {image_path}")
+            
+            log_info(f"Successfully loaded image from URL: {image_path} ({len(image_bytes)} bytes)")
             return image
         else:
             # Read from local file system

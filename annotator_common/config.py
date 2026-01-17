@@ -80,6 +80,7 @@ class Config:
         f"{os.getenv('ENVIRONMENT', 'dev')}_disqualify_cutout"
     )
     TOPIC_ANNOTATE_DATASET: str = f"{os.getenv('ENVIRONMENT', 'dev')}_annotate_dataset"
+    TOPIC_ZERO_SHOT: str = f"{os.getenv('ENVIRONMENT', 'dev')}_zero_shot"
 
     @classmethod
     def get_mongodb_uri(cls) -> str:

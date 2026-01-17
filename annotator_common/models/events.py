@@ -22,6 +22,7 @@ class EventType(str, Enum):
     ANALYZE_DATASET_IMAGE = "analyze_dataset_image"
     ANNOTATION_CREATED = "annotation_created"
     ANNOTATE_DATASET = "annotate_dataset"
+    ZERO_SHOT_DETECTION = "zero_shot_detection"
     PROJECT_COMPLETE = "project_complete"
     ERROR = "error"
 
@@ -138,7 +139,9 @@ class StartProjectIterationEvent(ProjectEvent):
     callback_url: Optional[str] = None
     callback_cost_url: Optional[str] = None  # URL for cost tracking callbacks
     organisation_id: Optional[str] = None  # Organisation ID for cost tracking
-    industry: Optional[str] = None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
+    industry: Optional[str] = (
+        None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
+    )
     product_image: ImageInput
     dataset_images: List[ImageInput]
 
@@ -156,7 +159,9 @@ class CutoutExtractionEvent(ProjectEvent):
 
     image_path: str
     image_type: Literal["dataset"] = "dataset"
-    industry: Optional[str] = None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
+    industry: Optional[str] = (
+        None  # Industry/use case from control analysis (e.g., "Retail", "Agriculture")
+    )
 
 
 class AnalyzeProductImageEvent(ProjectEvent):
@@ -179,3 +184,13 @@ class AnnotateDatasetEvent(ProjectEvent):
 
     # dataset_image_id/product_image_id are already on ProjectEvent; keep this class for typing/consistency.
     pass
+
+
+class ZeroShotDetectionEvent(ProjectEvent):
+    """Command: run zero-shot detection on a dataset image (published by project manager for non-retail industries)."""
+
+    dataset_image_url: str
+    product_image_url: str
+    threshold: float = 0.7
+    top_k: int = 10
+    nms_iou: float = 0.5
