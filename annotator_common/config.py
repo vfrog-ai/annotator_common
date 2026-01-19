@@ -82,6 +82,10 @@ class Config:
     TOPIC_ANNOTATE_DATASET: str = f"{os.getenv('ENVIRONMENT', 'dev')}_annotate_dataset"
     TOPIC_ZERO_SHOT: str = f"{os.getenv('ENVIRONMENT', 'dev')}_zero_shot"
 
+    # Zero-Shot API Configuration (GPU VM)
+    # URL is stored in Secret Manager: {env}-zero-shot-api-url
+    ZERO_SHOT_API_URL: Optional[str] = os.getenv("ZERO_SHOT_API_URL")
+
     @classmethod
     def get_mongodb_uri(cls) -> str:
         """Get MongoDB connection URI.
